@@ -6,5 +6,5 @@ Supporting configuration needed on Windows 2019 ADFS fully described in my [blog
 
 ![OAuth2 Entities](https://github.com/fabianlee/spring-boot-security-oauth2-oidc/raw/main/diagrams/oauth2-entities.drawio.png)
 
-Thanks to sharmarajdaksh for the original implementation against the Google Authentication Server.
+Thanks to sharmarajdaksh for the original Client App implementation against the Google OAuth2 server.
 https://github.com/sharmarajdaksh/github-oauth-go
