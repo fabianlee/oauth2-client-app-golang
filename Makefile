@@ -23,15 +23,24 @@ build:
 	mkdir bin
 	$(GO) build -o bin/$(PROJECT)
 
+clean:
+	$(GO) clean
+
 build-cross: build
 	env CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 $(GO) build -o bin/$(PROJECT).amd64
 	env CGO_ENABLED=0 GOOS=linux   GOARCH=386   $(GO) build -o bin/$(PROJECT).386
 	env CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GO) build -o bin/$(PROJECT).amd64.exe
 	env CGO_ENABLED=0 GOOS=windows GOARCH=386   $(GO) build -o bin/$(PROJECT).386.exe
 
+# build local image
 docker-build:
 	docker build -t $(OWNER)/$(PROJECT):$(DOCKER_VER) .
 
+# push to docker hub
+docker-push:
+	docker push $(OWNER)/$(PROJECT):$(DOCKER_VER)
+
+# run image locally on port 8080
 docker-run-adfs:
 	docker run -it --rm \
 	--network host \
@@ -42,5 +51,3 @@ docker-run-adfs:
 	-e ADFS_SCOPE="$(ADFS_SCOPE)" \
 	$(OWNER)/$(PROJECT):$(DOCKER_VER) $(PROJECT) $(PROJECT)
 
-clean:
-	$(GO) clean
