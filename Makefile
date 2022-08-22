@@ -20,11 +20,12 @@ get:
 	$(GO) get
 
 build:
-	mkdir bin
+	mkdir -p bin
 	$(GO) build -o bin/$(PROJECT)
 
 clean:
 	$(GO) clean
+	rm -fr bin
 
 build-cross: build
 	env CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 $(GO) build -o bin/$(PROJECT).amd64
@@ -49,5 +50,5 @@ docker-run-adfs:
 	-e ADFS_CLIENT_ID=$(ADFS_CLIENT_ID) \
 	-e ADFS_CLIENT_SECRET=$(ADFS_CLIENT_SECRET) \
 	-e ADFS_SCOPE="$(ADFS_SCOPE)" \
-	$(OWNER)/$(PROJECT):$(DOCKER_VER) $(PROJECT) $(PROJECT)
+	$(OWNER)/$(PROJECT):$(DOCKER_VER) $(PROJECT)
 

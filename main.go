@@ -119,7 +119,7 @@ func adfsLoginHandler(w http.ResponseWriter, r *http.Request) {
         adfs, _ := osLookupEnv("ADFS","")
         adfsClientID, _ := osLookupEnv("ADFS_CLIENT_ID","")
         redirectStr, _ := osLookupEnv("ADFS_REDIRECT_URI","http://localhost:8080/login/oauth2/code/adfs")
-        scopes, _ := osLookupEnv("ADFS_SCOPES","openid allatclaims")
+        scopes, _ := osLookupEnv("ADFS_SCOPE","openid allatclaims")
 
         // unique values for state and nonce
         stateStr := makeNonce()
@@ -337,7 +337,7 @@ func getGithubClientID() string {
 func getGithubClientSecret() string {
 	githubClientSecret, exists := osLookupEnv("GITHUB_CLIENT_SECRET","")
 	if !exists {
-		log.Fatal("Github Client ID not defined in .env file")
+		log.Fatal("Github Client Secret not defined in .env file")
 	}
 	return githubClientSecret
 }
