@@ -1,0 +1,7 @@
+.env
+.vscode
+main
+go.sum
+oauth2-client-app-golang
+
+bin/
