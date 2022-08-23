@@ -3,6 +3,7 @@
 //
 // Based off sharmarajdaksh's Google OAuth2 integration
 // https://github.com/sharmarajdaksh/github-oauth-go
+// https://sharmarajdaksh.github.io/blog/github-oauth-with-go
 package main
 
 import (
