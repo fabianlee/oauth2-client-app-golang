@@ -3,7 +3,6 @@
 //
 // Based off sharmarajdaksh's Google OAuth2 integration
 // https://github.com/sharmarajdaksh/github-oauth-go
-// https://sharmarajdaksh.github.io/blog/github-oauth-with-go
 package main
 
 import (
@@ -54,7 +53,7 @@ func main() {
         // https://forfuncsake.github.io/post/2017/08/trust-extra-ca-cert-in-go-app/
         // https://stackoverflow.com/questions/12122159/how-to-do-a-https-request-with-bad-certificate
         http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-	fmt.Println("InsecureSkipVerify set to true, doing this so ADFS cert does not need to be provided")
+	fmt.Println("NON-PRODUCTION! InsecureSkipVerify set to true, so ADFS cert does not need to be provided.")
 
 	// Returns links to the login route
 	http.HandleFunc("/", rootHandler)
