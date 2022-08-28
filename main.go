@@ -175,12 +175,13 @@ func getADFSAccessTokenAndJSON(code string) (string,string) {
 	}
 
 	respbody, _ := ioutil.ReadAll(resp.Body)
-
 	// Represents the response received
 	type AccessTokenResponse struct {
-		AccessToken string `json:"access_token"`
-		TokenType   string `json:"token_type"`
-		Scope       string `json:"scope"`
+		IDToken      string `json:"id_token"`
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		TokenType    string `json:"token_type"`
+		Resource     string `json:"resource"`
 	}
 	var ghresp AccessTokenResponse
 	json.Unmarshal(respbody, &ghresp)
@@ -201,22 +202,31 @@ func getADFSAccessTokenAndJSON(code string) (string,string) {
 	//fmt.Println("scope:",ghresp.Scope)
 
 
-        // NOW decode just the AccessToken field, which is a signed JWT
         // https://stackoverflow.com/questions/45405626/how-to-decode-a-jwt-token-in-go
         // decode JWT token without verifying the signature
         var claims map[string]interface{} // generic map to store parsed token
-        token, _ := jwt.ParseSigned(ghresp.AccessToken)
+
+        token, _ := jwt.ParseSigned(ghresp.IDToken)
+         _ = token.UnsafeClaimsWithoutVerification(&claims)
+        fmt.Println("==BEGIN DECODED ID TOKEN JWT============")
+        for k, v := range claims {
+          fmt.Println(k,":",v)
+        }
+        fmt.Println("==END DECODED ID TOKEN JWT============")
+
+        token, _ = jwt.ParseSigned(ghresp.AccessToken)
          _ = token.UnsafeClaimsWithoutVerification(&claims)
         fmt.Println("==BEGIN DECODED ACCESS TOKEN JWT============")
         for k, v := range claims {
           fmt.Println(k,":",v)
         }
         fmt.Println("==END DECODED ACCESS TOKEN JWT============")
+
+
         accessTokenJSON, err := json.Marshal(claims)
         if err != nil {
 		log.Panic("JSON marshal of access token failed", err)
         }
-
 	return ghresp.AccessToken, string(accessTokenJSON)
 }
 

@@ -9,7 +9,7 @@ run: init get build
 	bin/$(PROJECT)
 
 run-adfs: init get build
-	ADFS=$(ADFS) ADFS_CLIENT_ID=$(ADFS_CLIENT_ID) ADFS_CLIENT_SECRET=$(ADFS_CLIENT_SECRET) ADFS_SCOPE="$(ADFS_SCOPE)" ./$(PROJECT)
+	ADFS=$(ADFS) ADFS_CLIENT_ID=$(ADFS_CLIENT_ID) ADFS_CLIENT_SECRET=$(ADFS_CLIENT_SECRET) ADFS_SCOPE="$(ADFS_SCOPE)" bin/$(PROJECT)
 
 init: 
 	echo "initializing project $(PROJECT)..."
@@ -21,7 +21,7 @@ get:
 
 build:
 	mkdir -p bin
-	$(GO) build -o bin/$(PROJECT)
+	CGO_ENABLED=0 $(GO) build -o bin/$(PROJECT)
 
 clean:
 	$(GO) clean
