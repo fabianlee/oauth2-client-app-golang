@@ -1,7 +1,7 @@
 THISDIR := $(notdir $(CURDIR))
 PROJECT := $(THISDIR)
 OWNER := fabianlee
-DOCKER_VER := 1.0.0
+DOCKER_VER := 1.0.1
 #SHELL := /bin/bash
 GO := go
 
