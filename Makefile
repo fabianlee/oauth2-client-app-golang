@@ -1,15 +1,12 @@
 THISDIR := $(notdir $(CURDIR))
 PROJECT := $(THISDIR)
 OWNER := fabianlee
-DOCKER_VER := 1.0.1
+DOCKER_VER := 1.0.0
 #SHELL := /bin/bash
 GO := go
 
 run: init get build
 	bin/$(PROJECT)
-
-run-adfs: init get build
-	ADFS=$(ADFS) ADFS_CLIENT_ID=$(ADFS_CLIENT_ID) ADFS_CLIENT_SECRET=$(ADFS_CLIENT_SECRET) ADFS_SCOPE="$(ADFS_SCOPE)" bin/$(PROJECT)
 
 init: 
 	echo "initializing project $(PROJECT)..."
@@ -45,13 +42,15 @@ docker-push:
 	docker push $(OWNER)/$(PROJECT):$(DOCKER_VER)
 
 # run image locally on port 8080
-docker-run-adfs:
+docker-run:
 	docker run -it --rm \
 	--network host \
 	-p 8080:8080 \
-	-e ADFS=$(ADFS) \
-	-e ADFS_CLIENT_ID=$(ADFS_CLIENT_ID) \
-	-e ADFS_CLIENT_SECRET=$(ADFS_CLIENT_SECRET) \
-	-e ADFS_SCOPE="$(ADFS_SCOPE)" \
+	-e AUTH_PROVIDER=$(AUTH_PROVIDER) \
+	-e AUTH_SERVER=$(AUTH_SERVER) \
+	-e CLIENT_ID=$(CLIENT_ID) \
+	-e CLIENT_SECRET=$(CLIENT_SECRET) \
+	-e SCOPE="$(SCOPE)" \
+	-e REALM="$(REALM)" \
 	$(OWNER)/$(PROJECT):$(DOCKER_VER) $(PROJECT)
 
