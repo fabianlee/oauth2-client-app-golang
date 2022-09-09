@@ -27,6 +27,9 @@ clean:
 	$(GO) clean
 	rm -fr bin
 
+format:
+	gofmt -w main.go
+
 build-cross: build
 	env CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 $(GO) build -o bin/$(PROJECT).amd64
 	env CGO_ENABLED=0 GOOS=linux   GOARCH=386   $(GO) build -o bin/$(PROJECT).386
