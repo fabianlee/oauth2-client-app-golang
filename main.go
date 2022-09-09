@@ -37,14 +37,14 @@ import (
 const (
   PORT = "8080"
 )
-var AUTH_PROVIDER = ""
-var AUTH_SERVER = ""
+var AUTH_PROVIDER = "" // github|adfs|keycloak
+var AUTH_SERVER = "" // FQDN of Auth Server
 var CLIENT_ID = ""
 var CLIENT_SECRET = ""
 var SCOPE = ""
-var REALM = ""
-var REDIRECT_URI = ""
-var CLIENT_BASE_APP_URL = ""
+var REALM = "" // keycloak specific
+var CLIENT_BASE_APP_URL = "" // Client App URL, defaults to http://localhost:8080
+var REDIRECT_URI = ""  // location on Client App where Auth server is allowed to redirect back
 
 // init() executes before the main program
 func init() {
