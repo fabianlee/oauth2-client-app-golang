@@ -1,7 +1,9 @@
-// 'Client Application' in an OAuth2 Authorization Code flow
-// with ADFS 2019 as Authentication Server
+// Implementation of 'Client Application' in an OAuth2 Authorization Code flow
 //
-// Based off sharmarajdaksh's Google OAuth2 integration
+// Using ADFS 2019: https://fabianlee.org/2022/08/22/microsoft-configuring-an-application-group-for-oauth2-oidc-on-adfs-2019/
+// Using Keycloak: https://fabianlee.org/2022/09/10/kubernetes-keycloak-iam-deployed-into-kubernetes-cluster-for-oauth2-oidc/
+//
+// Originally based on sharmarajdaksh's Github OAuth2 integration
 // https://github.com/sharmarajdaksh/github-oauth-go
 package main
 
