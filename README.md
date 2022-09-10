@@ -2,6 +2,11 @@
 
 A GoLang implementation of an OAuth2 Client Application in a Authorization Code flow.
 
+### Tested OAuth2 Authentiation Servers
+
+* Windows 2019 ADFS
+* Keycloak 19
+
 ### Detailed walk-throughs
 
 * [Microsoft: configuring an Application Group for OAuth2/OIDC on ADFS 2019](https://fabianlee.org/2022/08/22/microsoft-configuring-an-application-group-for-oauth2-oidc-on-adfs-2019/)
