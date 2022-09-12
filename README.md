@@ -20,7 +20,7 @@ A GoLang implementation of an OAuth2/OIDC Client Application in a Authorization 
 
 ### OAuth2/OIDC Entities
 
-![OAuth2/OIDC Entities](https://github.com/fabianlee/spring-boot-security-oauth2-oidc/raw/main/diagrams/oauth2-entities.drawio.png)
+![OAuth2/OIDC Entities](https://github.com/fabianlee/oauth2-client-app-golang/raw/main/diagrams/oauth2-oidc-entities.drawio.png)
 
 
 Thanks to sharmarajdaksh for the original Client App implementation against the Github OAuth2 server.
