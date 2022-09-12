@@ -118,6 +118,7 @@ func init() {
 	// base location on Client App where Auth Server is allowed to callback
 	REDIRECT_URI, _ = osLookupEnv("REDIRECT_URI", "")
 	if len(REDIRECT_URI) < 1 && "adfs" == AUTH_PROVIDER {
+                // an "*" would not work for ADFS
 		REDIRECT_URI = fmt.Sprintf("%s/adfs/oauth2/token", CLIENT_BASE_APP_URL)
 	} else {
 		REDIRECT_URI = "*"
