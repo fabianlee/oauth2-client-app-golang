@@ -62,10 +62,9 @@ type MetadataResponse struct {
 	userinfo_endpoint      string
 	end_session_endpoint   string
 }
+
 // stores Auth Server endpoints
 var metadata MetadataResponse
-
-
 
 // init() executes before the main program
 // using this to pull values from environment variables, setup defaults,
@@ -175,7 +174,7 @@ func loadAuthServerMetadata() {
 	case "github":
 		metadata.authorization_endpoint = "https://github.com/login/oauth/authorize"
 		metadata.token_endpoint = "https://github.com/login/oauth/access_token"
-                // https://docs.github.com/en/developers/apps/building-oauth-apps/authorizing-oauth-apps#3-use-the-access-token-to-access-the-api
+		// https://docs.github.com/en/developers/apps/building-oauth-apps/authorizing-oauth-apps#3-use-the-access-token-to-access-the-api
 		metadata.userinfo_endpoint = "https://api.github.com/user"
 	case "spotify":
 		metadata.authorization_endpoint = "https://accounts.spotify.com/authorize"
@@ -276,7 +275,7 @@ func loggedinHandler(w http.ResponseWriter, r *http.Request, userData string) {
 	}
 
 	if IS_OIDC {
-	        logoutURL := fmt.Sprintf("%s?post_logout_redirect_uri=%s/&client_id=%s", metadata.end_session_endpoint, CLIENT_BASE_APP_URL, CLIENT_ID)
+		logoutURL := fmt.Sprintf("%s?post_logout_redirect_uri=%s/&client_id=%s", metadata.end_session_endpoint, CLIENT_BASE_APP_URL, CLIENT_ID)
 		fmt.Println("logoutURL: ", logoutURL)
 
 		w.Header().Set("Content-type", "text/html")
@@ -291,7 +290,6 @@ func loggedinHandler(w http.ResponseWriter, r *http.Request, userData string) {
 		fmt.Fprintf(w, string(prettyJSON.Bytes()))
 	}
 }
-
 
 // constructs URL and redirects to Auth Server authorization endpoint
 // sends: client_id, redirect_uri, scope
