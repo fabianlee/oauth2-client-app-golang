@@ -109,6 +109,10 @@ go get
 mkdir -p bin
 CGO_ENABLED=0 go build -o bin/oauth2-client-app-golang
 bin/oauth2-client-app-golang
+
+# OR use Makefile task
+sudo apt install make -y
+make
 ```
 
 
