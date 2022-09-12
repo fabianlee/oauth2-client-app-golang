@@ -4,7 +4,7 @@ A GoLang implementation of an OAuth2/OIDC Client Application in a Authorization 
 
 ![OAuth2/OIDC Entities](https://github.com/fabianlee/oauth2-client-app-golang/raw/main/diagrams/oauth2-oidc-entities.drawio.png)
 
-### Tested OIDC Authentiation Servers
+### Tested OAuth2+OIDC Authentiation Servers
 
 * [Windows 2019 ADFS](https://fabianlee.org/2022/08/22/microsoft-configuring-an-application-group-for-oauth2-oidc-on-adfs-2019/)
 * [Keycloak 19](https://fabianlee.org/2022/09/10/kubernetes-keycloak-iam-deployed-into-kubernetes-cluster-for-oauth2-oidc/)
