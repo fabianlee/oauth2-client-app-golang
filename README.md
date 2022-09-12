@@ -21,6 +21,7 @@ A GoLang implementation of an OAuth2/OIDC Client Application in a Authorization 
 * [Kubernetes: Keycloak IAM deployed into Kubernetes cluster for OAuth2/OIDC ](https://fabianlee.org/2022/09/10/kubernetes-keycloak-iam-deployed-into-kubernetes-cluster-for-oauth2-oidc/)
 * [OAuth2: Configuring okta for OAuth2/OIDC](https://fabianlee.org/2022/09/12/oauth2-configuring-okta-for-oauth2-oidc/)
 * [OAuth2: Configuring Spotify for OAuth2](https://fabianlee.org/2022/09/12/oauth2-configuring-spotify-for-oauth2/)
+* [OAuth2: Configuring Github for OAuth2](https://fabianlee.org/2022/09/12/oauth2-configuring-github-for-oauth2/)
 
 
 ### Environment variables for ADFS
@@ -68,7 +69,7 @@ export AUTH_SERVER=github.com
 export AUTH_PROVIDER=github
 export CLIENT_ID=<the oauth2 client id>
 export CLIENT_SECRET=<the oauth2 client secret>
-export SCOPE="openid"
+export SCOPE="user"
 
 # default callback at /login/github/callback
 ```
