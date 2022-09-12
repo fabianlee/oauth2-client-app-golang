@@ -28,6 +28,8 @@ export AUTH_PROVIDER=adfs
 export CLIENT_ID=<the oauth2 client id>
 export CLIENT_SECRET=<the oauth2 client secret>
 export SCOPE="openid allatclaims"
+
+# default callback at /login/oauth2/code/adfs
 ```
 
 ### Environment variables for Keycloak
@@ -40,6 +42,8 @@ export CLIENT_SECRET=<the oauth2 client secret>
 export SCOPE="openid email profile"
 
 export REALM=myrealm
+
+# default callback at /oidc_callback
 ```
 
 ### Environment variables for okta
@@ -50,6 +54,8 @@ export AUTH_PROVIDER=okta
 export CLIENT_ID=<the oauth2 client id>
 export CLIENT_SECRET=<the oauth2 client secret>
 export SCOPE="openid"
+
+# default callback at /authorization-code/callback
 ```
 
 ### Environment variables for Github
@@ -60,6 +66,8 @@ export AUTH_PROVIDER=github
 export CLIENT_ID=<the oauth2 client id>
 export CLIENT_SECRET=<the oauth2 client secret>
 export SCOPE="openid"
+
+# default callback at /login/github/callback
 ```
 
 ### Environment variables for Spotify
@@ -70,6 +78,8 @@ export AUTH_PROVIDER=spotify
 export CLIENT_ID=<the oauth2 client id>
 export CLIENT_SECRET=<the oauth2 client secret>
 export SCOPE="streaming"
+
+# default callback at /login/oauth2/code/spotify
 ```
 
 ### Running as Docker container
