@@ -52,17 +52,19 @@ var IS_OIDC = true           // will be set to false if only OAuth2 (and not OID
 
 // metadata on Auth Server
 type MetadataResponse struct {
-	issuer                 string `json:"issuer"`
-	authorization_endpoint string `json:"authorization_endpoint"`
-	token_endpoint         string `json:"token_endpoint"`
-	jwks_uri               string `json:"jwks_uri"`
-	userinfo_endpoint      string `json:"userinfo_endpoint"`
-	end_session_endpoint   string `json:"end_session_endpoint"`
+	issuer                 string
+	authorization_endpoint string
+	token_endpoint         string
+	jwks_uri               string
+	userinfo_endpoint      string
+	end_session_endpoint   string
 }
 
 var metadata MetadataResponse
 
 // init() executes before the main program
+// using this to pull values from environment variables, setup defaults,
+// and pull Auth Server metadata
 func init() {
 	// https://forfuncsake.github.io/post/2017/08/trust-extra-ca-cert-in-go-app/
 	// https://stackoverflow.com/questions/12122159/how-to-do-a-https-request-with-bad-certificate
@@ -152,6 +154,9 @@ func init() {
 	loadAuthServerMetadata()
 }
 
+// OIDC compliant providers all have metadata available publicly about endpoints it offers
+// we use this to lookup authorization, token, and logout endpoints
+// and for OAuth2-only providers (e.g. github and spotify) we manually populate
 func loadAuthServerMetadata() {
 
 	metadataURL := ""
@@ -221,27 +226,16 @@ func main() {
 	http.HandleFunc("/", rootHandler)
 
 	// builds redirection URL+params to Authorization server
-	/*
-		http.HandleFunc("/login/github/", githubLoginHandler)
-		http.HandleFunc("/login/ADFS/", adfsLoginHandler)
-		http.HandleFunc("/login/keycloak/", keycloakLoginHandler)
-		http.HandleFunc("/login/okta/", oktaLoginHandler)
-	*/
 	http.HandleFunc("/login/", loginHandler)
 
-	// callback from Auth Server that provides code, that can then be exchanged for Access Token
-	/*
-		http.HandleFunc("/login/github/callback", githubCallbackHandler)
-		http.HandleFunc("/login/oauth2/code/adfs", adfsCallbackHandler)
-		http.HandleFunc("/oidc_callback", keycloakCallbackHandler)
-		http.HandleFunc("/authorization-code/callback", oktaCallbackHandler)
-	*/
+	// callback from Auth Server that sends code
+	// then opaquely exchanged for Access Token (end user cannot see this interaction)
 	http.HandleFunc(CALLBACK_URI, callbackHandler)
 
 	// where authenticated user is redirected to shows basic user info
-	http.HandleFunc("/loggedin", func(w http.ResponseWriter, r *http.Request) {
-		loggedinHandler(w, r, "")
-	})
+	//http.HandleFunc("/loggedin", func(w http.ResponseWriter, r *http.Request) {
+	//	loggedinHandler(w, r, "")
+	//})
 
 	// start HTTP listener
 	fmt.Println("[ UP ON PORT", PORT, "]")
@@ -250,28 +244,15 @@ func main() {
 	)
 }
 
+// gives user login link
+// and hint as to whether the provider is OIDC or just OAUTH2
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 
 	if IS_OIDC {
-		fmt.Fprintf(w, "<a href=\"/login/\">LOGIN to OIDC %s </a><br/>", AUTH_PROVIDER)
+		fmt.Fprintf(w, "<a href=\"/login/\">OIDC LOGIN to %s</a><br/>", AUTH_PROVIDER)
 	} else {
-		fmt.Fprintf(w, "<a href=\"/login/\">LOGIN to OAUTH2 %s </a><br/>", AUTH_PROVIDER)
+		fmt.Fprintf(w, "<a href=\"/login/\">OAUTH2 LOGIN to %s </a><br/>", AUTH_PROVIDER)
 	}
-
-	/*
-		// show links where provider is configured in .env
-		if "github" == AUTH_PROVIDER {
-			fmt.Fprintf(w, `<a href="/login/github/">LOGIN to Github</a><br/>`)
-		} else if "adfs" == AUTH_PROVIDER {
-			fmt.Fprintf(w, `<a href="/login/ADFS/">LOGIN to ADFS</a><br/>`)
-		} else if "keycloak" == AUTH_PROVIDER {
-			fmt.Fprintf(w, `<a href="/login/keycloak/">LOGIN to Keycloak</a><br/>`)
-		} else if "okta" == AUTH_PROVIDER {
-			fmt.Fprintf(w, `<a href="/login/okta/">LOGIN to okta</a><br/>`)
-		} else {
-			fmt.Fprintf(w, `Did not find AUTH_PROVIDER `, AUTH_PROVIDER)
-		}
-	*/
 
 }
 
@@ -284,8 +265,6 @@ func loggedinHandler(w http.ResponseWriter, r *http.Request, userData string) {
 		return
 	}
 
-	w.Header().Set("Content-type", "application/json")
-
 	// Prettifying the json
 	var prettyJSON bytes.Buffer
 	// json.indent is a library utility function to prettify JSON indentation
@@ -294,42 +273,82 @@ func loggedinHandler(w http.ResponseWriter, r *http.Request, userData string) {
 		log.Panic("JSON parse error")
 	}
 
-	// Return the prettified JSON as a string
-	fmt.Fprintf(w, string(prettyJSON.Bytes()))
+	if IS_OIDC {
+		logoutURL := generateLogoutURL()
+		fmt.Println("logoutURL: ", logoutURL)
+
+		w.Header().Set("Content-type", "text/html")
+		fmt.Fprintf(w, "<a href=\"%s\">OIDC LOGOUT from %s </a><br/>", logoutURL, AUTH_PROVIDER)
+		fmt.Fprintf(w, `<textarea cols="140" rows="40" style=\"font-size: small;\">`)
+		fmt.Fprintf(w, string(prettyJSON.Bytes()))
+		fmt.Fprintf(w, `</textarea>`)
+
+	} else {
+		// non-OIDC does not have logout, so just show user info data
+		w.Header().Set("Content-type", "application/json")
+		fmt.Fprintf(w, string(prettyJSON.Bytes()))
+	}
 }
 
+// create a logout URL for OIDC compliant provider
+func generateLogoutURL() string {
+
+	// minimal authentication params
+	logoutURL := fmt.Sprintf("%s?post_logout_redirect_uri=%s/&client_id=%s", metadata.end_session_endpoint, CLIENT_BASE_APP_URL, CLIENT_ID)
+
+	// certain providers might need appending of fields
+	switch AUTH_PROVIDER {
+	case "adfs":
+		// intentionally no changes
+	case "keycloak":
+		// intentionally no changes
+	case "okta":
+		// intentionally no changes
+	}
+
+	return logoutURL
+}
+
+// constructs URL and redirects to Auth Server authorization endpoint
+// sends: client_id, redirect_uri, scope
+// Auth Server will then perform the login process, and send to callback with code
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
 
-	redirect_uri := fmt.Sprintf("%s%s", CLIENT_BASE_APP_URL, CALLBACK_URI)
-	fmt.Println("Will be redirecting code back to " + redirect_uri)
+	callback_uri := fmt.Sprintf("%s%s", CLIENT_BASE_APP_URL, CALLBACK_URI)
+	fmt.Println("Auth Server be redirecting code back to " + callback_uri)
 
 	// unique value, coutermeasure for known attacks
-	stateStr := makeNonce()
+	stateStr := makeUniqueValue()
 
-	// minimal redirect
-	redirectURL := fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&scope=%s&response_type=code&state=%s", metadata.authorization_endpoint, CLIENT_ID, redirect_uri, SCOPE, stateStr)
+	// minimal authentication params
+	authURL := fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&scope=%s&response_type=code&state=%s", metadata.authorization_endpoint, CLIENT_ID, callback_uri, SCOPE, stateStr)
 
+	// certain providers need appending of fields
 	switch AUTH_PROVIDER {
 	case "adfs":
-		nonceStr := makeNonce()
-		redirectURL = fmt.Sprintf("%s&resource=%s&nonce=%s", redirectURL, CLIENT_ID, nonceStr)
+		nonceStr := makeUniqueValue()
+		authURL = fmt.Sprintf("%s&resource=%s&nonce=%s", authURL, CLIENT_ID, nonceStr)
 	case "keycloak":
-		redirectURL = fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&scope=%s&access_type=offline&response_type=code&state=%s&openid.realm=%s", metadata.authorization_endpoint, CLIENT_ID, redirect_uri, SCOPE, stateStr, REALM)
+		authURL = fmt.Sprintf("%s&access_type=offline&openid.realm=%s", authURL, REALM)
 	case "okta":
-		redirectURL = fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&scope=%s&response_type=code&state=%s", metadata.authorization_endpoint, CLIENT_ID, redirect_uri, SCOPE, stateStr)
+		// intentionally no changes
 	case "github":
-		redirectURL = fmt.Sprintf("%s?client_id=%s&redirect_uri=%s", metadata.authorization_endpoint, CLIENT_ID, redirect_uri)
+		// intentionally no changes
+		// github ignoes extra 'response_type' param being sent
 	case "spotify":
-		redirectURL = fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&response_type=code&state=%s&scope=%s", metadata.authorization_endpoint, CLIENT_ID, redirect_uri, stateStr, SCOPE)
+		// intentionally no changes
 	default:
-		redirectURL = fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&scope=%s&response_type=code&state=%s", metadata.authorization_endpoint, CLIENT_ID, redirect_uri, SCOPE, stateStr)
+		// intentionally no changes
 	}
-	fmt.Println(redirectURL)
+	fmt.Println(authURL)
 
-	http.Redirect(w, r, redirectURL, 301)
+	http.Redirect(w, r, authURL, 301)
 }
 
+// callback from Authentication Server that passes in 'code'
+// This is the opaque exchange between this Client App and the Auth Server (will not be seen by user "Resource Owner")
+// that retrieves an Access Token from Auth Server
 func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
 	fmt.Println("code returned from "+AUTH_PROVIDER+":", code)
@@ -344,6 +363,7 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// OIDC providers will return detailed ID and Access Token
 func getOIDCAccessTokenAndJSON(code string) (string, string) {
 
 	callbackURL := fmt.Sprintf("%s%s", CLIENT_BASE_APP_URL, CALLBACK_URI)
@@ -426,6 +446,7 @@ func getOIDCAccessTokenAndJSON(code string) (string, string) {
 	return ghresp.AccessToken, string(accessTokenJSON)
 }
 
+// OAuth2-only providers (not OIDC compliant)  will return only Access Token and not ID Token
 func getOAuth2OnlyAccessToken(code string) string {
 
 	callbackURL := fmt.Sprintf("%s%s", CLIENT_BASE_APP_URL, CALLBACK_URI)
@@ -479,6 +500,8 @@ func getOAuth2OnlyAccessToken(code string) string {
 	return ghresp.AccessToken
 }
 
+// OAuth2-only providers (not OIDC compliant)  will not have detailed Access Token,
+// rely instead on pulling from a provider's API user endpoint (which hopefully they have)
 func getOAuth2UserInfo(accessToken string) string {
 	req, reqerr := http.NewRequest("GET", metadata.userinfo_endpoint, nil)
 	fmt.Println("Pulling user info from: ", metadata.userinfo_endpoint)
@@ -498,441 +521,7 @@ func getOAuth2UserInfo(accessToken string) string {
 	return string(respbody)
 }
 
-// ****************************************************************************
-// OKTA BEGIN
-// ****************************************************************************
-
-// https://developer.okta.com/docs/reference/api/oidc/#authorize
-func oktaLoginHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
-
-	redirect_uri := fmt.Sprintf("%s/authorization-code/callback", CLIENT_BASE_APP_URL)
-	// unique values for state
-	stateStr := makeNonce()
-
-	redirectURL := fmt.Sprintf("https://%s/oauth2/v1/authorize?client_id=%s&redirect_uri=%s&scope=%s&response_type=code&state=%s", AUTH_SERVER, CLIENT_ID, redirect_uri, SCOPE, stateStr)
-
-	fmt.Println(redirectURL)
-
-	http.Redirect(w, r, redirectURL, 301)
-}
-
-func oktaCallbackHandler(w http.ResponseWriter, r *http.Request) {
-	code := r.URL.Query().Get("code")
-	fmt.Println("code returned from okta:", code)
-
-	_, oktaAccessJSON := getOktaAccessTokenAndJSON(code)
-
-	loggedinHandler(w, r, oktaAccessJSON)
-}
-
-// https://developer.okta.com/docs/reference/api/oidc/#token
-func getOktaAccessTokenAndJSON(code string) (string, string) {
-
-	redirectURL := fmt.Sprintf("%s/authorization-code/callback", CLIENT_BASE_APP_URL)
-	tokenURL := fmt.Sprintf("https://%s/oauth2/v1/token", AUTH_SERVER)
-
-	data := url.Values{}
-	data.Set("grant_type", "authorization_code")
-	data.Set("client_id", CLIENT_ID)
-	data.Set("client_secret", CLIENT_SECRET)
-	data.Set("code", code)
-	data.Set("redirect_uri", redirectURL)
-	// https://developer.okta.com/docs/reference/api/apps/#add-oauth-2-0-client-application
-	//data.Set("token_endpoint_auth_method", "client_secret_post")
-
-	fmt.Println("Exchanging code for token at", tokenURL)
-	fmt.Println(data)
-
-	req, reqerr := http.NewRequest("POST", tokenURL, strings.NewReader(data.Encode()))
-	if reqerr != nil {
-		log.Panic("Request creation failed", reqerr)
-	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded") // required to post correctly
-
-	resp, resperr := http.DefaultClient.Do(req)
-	if resperr != nil {
-		log.Panic("Request failed", resperr)
-	}
-
-	respbody, _ := ioutil.ReadAll(resp.Body)
-	fmt.Println("=======", fmt.Sprintf("%s", respbody), "========")
-	// Represents the response received
-	type AccessTokenResponse struct {
-		IDToken      string `json:"id_token"`
-		AccessToken  string `json:"access_token"`
-		RefreshToken string `json:"refresh_token"`
-		TokenType    string `json:"token_type"`
-		Scope        string `json:"scope"`
-		//Resource     string `json:"resource"`
-	}
-	var ghresp AccessTokenResponse
-	json.Unmarshal(respbody, &ghresp)
-
-	// FIRST decode the entire response, one of the fields is AccessToken
-	// use unknown map interface to show all json fields for debugging
-	var unknown map[string]interface{}
-	err := json.Unmarshal([]byte(respbody), &unknown)
-	if err != nil {
-		log.Panic("unknown marshall failed", err)
-	}
-	fmt.Println("==BEGIN ALL DECODED FIELDS============")
-	for k, v := range unknown {
-		fmt.Println(k, ":", v)
-	}
-	fmt.Println("==END ALL DECODED FIELDS============")
-	//fmt.Println(ghresp.AccessToken)
-	//fmt.Println("scope:",ghresp.Scope)
-
-	// https://stackoverflow.com/questions/45405626/how-to-decode-a-jwt-token-in-go
-	// decode JWT token without verifying the signature
-	var claims map[string]interface{} // generic map to store parsed token
-
-	token, _ := jwt.ParseSigned(ghresp.IDToken)
-	_ = token.UnsafeClaimsWithoutVerification(&claims)
-	fmt.Println("==BEGIN DECODED ID TOKEN JWT============")
-	for k, v := range claims {
-		fmt.Println(k, ":", v)
-	}
-	fmt.Println("==END DECODED ID TOKEN JWT============")
-
-	token, _ = jwt.ParseSigned(ghresp.AccessToken)
-	_ = token.UnsafeClaimsWithoutVerification(&claims)
-	fmt.Println("==BEGIN DECODED ACCESS TOKEN JWT============")
-	for k, v := range claims {
-		fmt.Println(k, ":", v)
-	}
-	fmt.Println("==END DECODED ACCESS TOKEN JWT============")
-
-	accessTokenJSON, err := json.Marshal(claims)
-	if err != nil {
-		log.Panic("JSON marshal of access token failed", err)
-	}
-	return ghresp.AccessToken, string(accessTokenJSON)
-}
-
-// ****************************************************************************
-// OKTA END
-// ****************************************************************************
-
-// ****************************************************************************
-// KEYCLOAK BEGIN
-// ****************************************************************************
-
-// https://www.baeldung.com/postman-keycloak-endpoints#2-authorize-endpoint
-func keycloakLoginHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
-
-	redirect_uri := fmt.Sprintf("%s/oidc_callback", CLIENT_BASE_APP_URL)
-	// unique values for state
-	stateStr := makeNonce()
-
-	redirectURL := fmt.Sprintf("https://%s/realms/%s/protocol/openid-connect/auth?client_id=%s&redirect_uri=%s&scope=%s&access_type=offline&response_type=code&state=%s&openid.realm=%s", AUTH_SERVER, REALM, CLIENT_ID, redirect_uri, SCOPE, stateStr, REALM)
-	fmt.Println(redirectURL)
-
-	http.Redirect(w, r, redirectURL, 301)
-}
-
-func keycloakCallbackHandler(w http.ResponseWriter, r *http.Request) {
-	code := r.URL.Query().Get("code")
-	fmt.Println("code returned from Keycloak:", code)
-
-	_, keycloakAccessJSON := getKeycloakAccessTokenAndJSON(code)
-	fmt.Println("keycloakAccessJSON:", keycloakAccessJSON)
-
-	loggedinHandler(w, r, keycloakAccessJSON)
-}
-
-// https://www.baeldung.com/postman-keycloak-endpoints#3-token-endpoint
-// https://www.appsdeveloperblog.com/keycloak-authorization-code-grant-example/
-func getKeycloakAccessTokenAndJSON(code string) (string, string) {
-
-	redirectURL := fmt.Sprintf("%s/oidc_callback", CLIENT_BASE_APP_URL)
-	tokenURL := fmt.Sprintf("https://%s/realms/%s/protocol/openid-connect/token", AUTH_SERVER, REALM)
-
-	data := url.Values{}
-	data.Set("grant_type", "authorization_code")
-	data.Set("client_id", CLIENT_ID)
-	data.Set("client_secret", CLIENT_SECRET)
-	data.Set("code", code)
-	data.Set("redirect_uri", redirectURL)
-
-	fmt.Println("Exchanging code for token at", tokenURL)
-	fmt.Println(data)
-
-	req, reqerr := http.NewRequest("POST", tokenURL, strings.NewReader(data.Encode()))
-	if reqerr != nil {
-		log.Panic("Request creation failed", reqerr)
-	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded") // required to post correctly
-
-	resp, resperr := http.DefaultClient.Do(req)
-	if resperr != nil {
-		log.Panic("Request failed", resperr)
-	}
-
-	respbody, _ := ioutil.ReadAll(resp.Body)
-	fmt.Println("=======", fmt.Sprintf("%s", respbody), "========")
-	// Represents the response received
-	type AccessTokenResponse struct {
-		IDToken      string `json:"id_token"`
-		AccessToken  string `json:"access_token"`
-		RefreshToken string `json:"refresh_token"`
-		TokenType    string `json:"token_type"`
-		Scope        string `json:"scope"`
-		//Resource     string `json:"resource"`
-	}
-	var ghresp AccessTokenResponse
-	json.Unmarshal(respbody, &ghresp)
-
-	// FIRST decode the entire response, one of the fields is AccessToken
-	// use unknown map interface to show all json fields for debugging
-	var unknown map[string]interface{}
-	err := json.Unmarshal([]byte(respbody), &unknown)
-	if err != nil {
-		log.Panic("unknown marshall failed", err)
-	}
-	fmt.Println("==BEGIN ALL DECODED FIELDS============")
-	for k, v := range unknown {
-		fmt.Println(k, ":", v)
-	}
-	fmt.Println("==END ALL DECODED FIELDS============")
-	//fmt.Println(ghresp.AccessToken)
-	//fmt.Println("scope:",ghresp.Scope)
-
-	// https://stackoverflow.com/questions/45405626/how-to-decode-a-jwt-token-in-go
-	// decode JWT token without verifying the signature
-	var claims map[string]interface{} // generic map to store parsed token
-
-	token, _ := jwt.ParseSigned(ghresp.IDToken)
-	_ = token.UnsafeClaimsWithoutVerification(&claims)
-	fmt.Println("==BEGIN DECODED ID TOKEN JWT============")
-	for k, v := range claims {
-		fmt.Println(k, ":", v)
-	}
-	fmt.Println("==END DECODED ID TOKEN JWT============")
-
-	token, _ = jwt.ParseSigned(ghresp.AccessToken)
-	_ = token.UnsafeClaimsWithoutVerification(&claims)
-	fmt.Println("==BEGIN DECODED ACCESS TOKEN JWT============")
-	for k, v := range claims {
-		fmt.Println(k, ":", v)
-	}
-	fmt.Println("==END DECODED ACCESS TOKEN JWT============")
-
-	accessTokenJSON, err := json.Marshal(claims)
-	if err != nil {
-		log.Panic("JSON marshal of access token failed", err)
-	}
-	return ghresp.AccessToken, string(accessTokenJSON)
-}
-
-// ****************************************************************************
-// KEYCLOAK END
-// ****************************************************************************
-
-// ****************************************************************************
-// ADFS BEGIN
-// ****************************************************************************
-
-// https://docs.microsoft.com/en-us/windows-server/identity/ad-fs/overview/ad-fs-openid-connect-oauth-flows-scenarios#request-an-authorization-code
-// construct URL to authorize into ADFS using proper OAuth2 Application
-func adfsLoginHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
-
-	redirectStr := fmt.Sprintf("%s/login/oauth2/code/adfs", CLIENT_BASE_APP_URL)
-	// unique values for state and nonce
-	stateStr := makeNonce()
-	nonceStr := makeNonce()
-
-	// construct authorize URL to ADFS
-	redirectURL := fmt.Sprintf("https://%s/adfs/oauth2/authorize?resource=%s&response_type=code&client_id=%s&scope=%s&state=%s&redirect_uri=%s&nonce=%s", AUTH_SERVER, CLIENT_ID, CLIENT_ID, SCOPE, stateStr, redirectStr, nonceStr)
-	fmt.Println(redirectURL)
-
-	http.Redirect(w, r, redirectURL, 301)
-}
-
-// https://docs.microsoft.com/en-us/windows-server/identity/ad-fs/overview/ad-fs-openid-connect-oauth-flows-scenarios#successful-response-2
-// 'code' sent by the ADFS Authorization Server, up to us to decode embedded Access Token
-func adfsCallbackHandler(w http.ResponseWriter, r *http.Request) {
-	code := r.URL.Query().Get("code")
-	fmt.Println("code returned from ADFS:", code)
-
-	_, adfsAccessJSON := getADFSAccessTokenAndJSON(code)
-	fmt.Println("adfsAccessJSON:", adfsAccessJSON)
-
-	loggedinHandler(w, r, adfsAccessJSON)
-}
-
-// https://docs.microsoft.com/en-us/windows-server/identity/ad-fs/overview/ad-fs-openid-connect-oauth-flows-scenarios#request-an-access-token
-// trade code for Access Token
-func getADFSAccessTokenAndJSON(code string) (string, string) {
-
-	redirectURL := fmt.Sprintf("%s/login/oauth2/code/adfs", CLIENT_BASE_APP_URL)
-	fmt.Println("redirectURL: ", redirectURL)
-	tokenURL := fmt.Sprintf("https://%s/adfs/oauth2/token", AUTH_SERVER)
-	fmt.Println("adfs tokenURL:", tokenURL)
-
-	data := url.Values{}
-	data.Set("grant_type", "authorization_code")
-	data.Set("client_id", CLIENT_ID)
-	data.Set("client_secret", CLIENT_SECRET)
-	data.Set("code", code)
-	data.Set("redirect_uri", redirectURL)
-
-	req, reqerr := http.NewRequest("POST", tokenURL, strings.NewReader(data.Encode()))
-	if reqerr != nil {
-		log.Panic("Request creation failed", reqerr)
-	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded") // not absolutely required
-
-	resp, resperr := http.DefaultClient.Do(req)
-	if resperr != nil {
-		log.Panic("Request failed", resperr)
-	}
-
-	respbody, _ := ioutil.ReadAll(resp.Body)
-	// Represents the response received
-	type AccessTokenResponse struct {
-		IDToken      string `json:"id_token"`
-		AccessToken  string `json:"access_token"`
-		RefreshToken string `json:"refresh_token"`
-		TokenType    string `json:"token_type"`
-		Resource     string `json:"resource"`
-	}
-	var ghresp AccessTokenResponse
-	json.Unmarshal(respbody, &ghresp)
-
-	// FIRST decode the entire response, one of the fields is AccessToken
-	// use unknown map interface to show all json fields for debugging
-	var unknown map[string]interface{}
-	err := json.Unmarshal([]byte(respbody), &unknown)
-	if err != nil {
-		log.Panic("unknown marshall failed", err)
-	}
-	fmt.Println("==BEGIN ALL DECODED FIELDS============")
-	for k, v := range unknown {
-		fmt.Println(k, ":", v)
-	}
-	fmt.Println("==END ALL DECODED FIELDS============")
-	//fmt.Println(ghresp.AccessToken)
-	//fmt.Println("scope:",ghresp.Scope)
-
-	// https://stackoverflow.com/questions/45405626/how-to-decode-a-jwt-token-in-go
-	// decode JWT token without verifying the signature
-	var claims map[string]interface{} // generic map to store parsed token
-
-	token, _ := jwt.ParseSigned(ghresp.IDToken)
-	_ = token.UnsafeClaimsWithoutVerification(&claims)
-	fmt.Println("==BEGIN DECODED ID TOKEN JWT============")
-	for k, v := range claims {
-		fmt.Println(k, ":", v)
-	}
-	fmt.Println("==END DECODED ID TOKEN JWT============")
-
-	token, _ = jwt.ParseSigned(ghresp.AccessToken)
-	_ = token.UnsafeClaimsWithoutVerification(&claims)
-	fmt.Println("==BEGIN DECODED ACCESS TOKEN JWT============")
-	for k, v := range claims {
-		fmt.Println(k, ":", v)
-	}
-	fmt.Println("==END DECODED ACCESS TOKEN JWT============")
-
-	accessTokenJSON, err := json.Marshal(claims)
-	if err != nil {
-		log.Panic("JSON marshal of access token failed", err)
-	}
-	return ghresp.AccessToken, string(accessTokenJSON)
-}
-
-// ****************************************************************************
-// ADFS END
-// ****************************************************************************
-
-// ****************************************************************************
-// GITHUB BEGIN
-// ****************************************************************************
-
-func githubLoginHandler(w http.ResponseWriter, r *http.Request) {
-
-	clientCallbackURL := fmt.Sprintf("%s/login/github/callback", CLIENT_BASE_APP_URL)
-	redirectURL := fmt.Sprintf("https://%s/login/oauth/authorize?client_id=%s&redirect_uri=%s", AUTH_SERVER, CLIENT_ID, clientCallbackURL)
-	fmt.Println(redirectURL)
-
-	http.Redirect(w, r, redirectURL, 301)
-}
-
-func githubCallbackHandler(w http.ResponseWriter, r *http.Request) {
-	code := r.URL.Query().Get("code")
-
-	githubAccessToken := getGithubAccessToken(code)
-
-	// fetch user info remotely using access token
-	githubUserData := getGithubUserData(githubAccessToken)
-
-	loggedinHandler(w, r, githubUserData)
-}
-
-func getGithubUserData(accessToken string) string {
-	req, reqerr := http.NewRequest("GET", "https://api.github.com/user", nil)
-	if reqerr != nil {
-		log.Panic("API Request creation failed")
-	}
-
-	authorizationHeaderValue := fmt.Sprintf("token %s", accessToken)
-	req.Header.Set("Authorization", authorizationHeaderValue)
-
-	resp, resperr := http.DefaultClient.Do(req)
-	if resperr != nil {
-		log.Panic("Request failed")
-	}
-
-	respbody, _ := ioutil.ReadAll(resp.Body)
-
-	return string(respbody)
-}
-
-func getGithubAccessToken(code string) string {
-
-	requestBodyMap := map[string]string{"client_id": CLIENT_ID, "client_secret": CLIENT_SECRET, "code": code}
-	requestJSON, _ := json.Marshal(requestBodyMap)
-
-	req, reqerr := http.NewRequest("POST", "https://github.com/login/oauth/access_token", bytes.NewBuffer(requestJSON))
-	if reqerr != nil {
-		log.Panic("Request creation failed")
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	resp, resperr := http.DefaultClient.Do(req)
-	if resperr != nil {
-		log.Panic("Request failed")
-	}
-
-	respbody, _ := ioutil.ReadAll(resp.Body)
-
-	// Represents the response received from Github
-	type githubAccessTokenResponse struct {
-		AccessToken string `json:"access_token"`
-		TokenType   string `json:"token_type"`
-		Scope       string `json:"scope"`
-	}
-
-	var ghresp githubAccessTokenResponse
-	json.Unmarshal(respbody, &ghresp)
-
-	fmt.Println(ghresp.AccessToken)
-	return ghresp.AccessToken
-}
-
-// ****************************************************************************
-// GITHUB END
-// ****************************************************************************
-
-// get OS environment variable, have default value if non-existent
+// get OS environment variable, pass default value if non-existent
 func osLookupEnv(key string, defaultValue string) (string, bool) {
 	val, exists := os.LookupEnv(key)
 	if exists {
@@ -946,8 +535,9 @@ func osLookupEnv(key string, defaultValue string) (string, bool) {
 	}
 }
 
-// simple 16 character nonce when unique id is required
-func makeNonce() string {
+// simple 16 character nonce
+// used for unique values in exchanges to avoid several known attacks against protocol
+func makeUniqueValue() string {
 	bytes := make([]byte, 16)
 	if _, err := rand.Read(bytes); err != nil {
 		panic(err.Error())
