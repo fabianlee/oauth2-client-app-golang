@@ -52,13 +52,14 @@ var IS_OIDC = true           // will be set to false if only OAuth2 (and not OID
 
 // metadata on Auth Server
 type MetadataResponse struct {
-  issuer string `json:"issuer"`
-  authorization_endpoint string `json:"authorization_endpoint"`
-  token_endpoint string `json:"token_endpoint"`
-  jwks_uri string `json:"jwks_uri"`
-  userinfo_endpoint string `json:"userinfo_endpoint"`
-  end_session_endpoint string `json:"end_session_endpoint"`
+	issuer                 string `json:"issuer"`
+	authorization_endpoint string `json:"authorization_endpoint"`
+	token_endpoint         string `json:"token_endpoint"`
+	jwks_uri               string `json:"jwks_uri"`
+	userinfo_endpoint      string `json:"userinfo_endpoint"`
+	end_session_endpoint   string `json:"end_session_endpoint"`
 }
+
 var metadata MetadataResponse
 
 // init() executes before the main program
@@ -81,8 +82,8 @@ func init() {
 		log.Panic("ERROR need to define AUTH_PROVIDER")
 	}
 	AUTH_SERVER, exists = osLookupEnv("AUTH_SERVER", "")
-        if "github" == AUTH_SERVER { // no need to specify since it is a static location
-                AUTH_SERVER = "github.com"
+	if "github" == AUTH_SERVER { // no need to specify since it is a static location
+		AUTH_SERVER = "github.com"
 	} else if !exists {
 		log.Panic("ERROR need to define AUTH_SERVER")
 	}
@@ -117,25 +118,24 @@ func init() {
 	}
 
 	// resource on Client App where code is traded for ID and Access Token
-        DEFAULT_CALLBACK_URI := ""
-        switch AUTH_PROVIDER {
-        case "adfs":
-          DEFAULT_CALLBACK_URI = "/login/oauth2/code/adfs"
-        case "keycloak":
-          DEFAULT_CALLBACK_URI = "/oidc_callback"
-        case "okta":
-          DEFAULT_CALLBACK_URI = "/authorization-code/callback"
-        case "github":
-          DEFAULT_CALLBACK_URI = "/login/github/callback"
-          IS_OIDC = false
-        case "spotify":
-          DEFAULT_CALLBACK_URI = "/login/oauth2/code/spotify"
-          IS_OIDC = false
-        default:
-          DEFAULT_CALLBACK_URI = "/callback"
-        }
+	DEFAULT_CALLBACK_URI := ""
+	switch AUTH_PROVIDER {
+	case "adfs":
+		DEFAULT_CALLBACK_URI = "/login/oauth2/code/adfs"
+	case "keycloak":
+		DEFAULT_CALLBACK_URI = "/oidc_callback"
+	case "okta":
+		DEFAULT_CALLBACK_URI = "/authorization-code/callback"
+	case "github":
+		DEFAULT_CALLBACK_URI = "/login/github/callback"
+		IS_OIDC = false
+	case "spotify":
+		DEFAULT_CALLBACK_URI = "/login/oauth2/code/spotify"
+		IS_OIDC = false
+	default:
+		DEFAULT_CALLBACK_URI = "/callback"
+	}
 	CALLBACK_URI, _ = osLookupEnv("CALLBACK_URI", DEFAULT_CALLBACK_URI)
-
 
 	fmt.Printf("AUTH_PROVIDER=%s\n", AUTH_PROVIDER)
 	fmt.Printf("AUTH_SERVER=%s\n", AUTH_SERVER)
@@ -148,95 +148,94 @@ func init() {
 	fmt.Printf("CALLBACK_URI=%s\n", CALLBACK_URI)
 	fmt.Printf("IS_OIDC=%t\n", IS_OIDC)
 
-        // OIDC metadata URL
-        loadAuthServerMetadata()
+	// OIDC metadata URL
+	loadAuthServerMetadata()
 }
 
 func loadAuthServerMetadata() {
 
-        metadataURL := ""
-        switch AUTH_PROVIDER {
-        case "adfs":
-          metadataURL = fmt.Sprintf("https://%s/adfs/.well-known/openid-configuration", AUTH_SERVER)
-        case "keycloak":
-          metadataURL = fmt.Sprintf("https://%s/realms/%s/.well-known/openid-configuration", AUTH_SERVER, REALM)
-        case "okta":
-          metadataURL = fmt.Sprintf("https://%s/.well-known/openid-configuration", AUTH_SERVER)
-        case "github":
-          metadata.authorization_endpoint = "https://github.com/login/oauth/authorize"
-          metadata.token_endpoint = "https://github.com/login/oauth/access_token"
-          metadata.userinfo_endpoint = "https://api.github.com/user"
-        case "spotify":
-          metadata.authorization_endpoint = "https://accounts.spotify.com/authorize"
-          metadata.token_endpoint = "https://accounts.spotify.com/api/token"
-          // https://developer.spotify.com/documentation/web-api/reference/#/operations/get-current-users-profile
-          metadata.userinfo_endpoint = "https://api.spotify.com/v1/me"
-        }
+	metadataURL := ""
+	switch AUTH_PROVIDER {
+	case "adfs":
+		metadataURL = fmt.Sprintf("https://%s/adfs/.well-known/openid-configuration", AUTH_SERVER)
+	case "keycloak":
+		metadataURL = fmt.Sprintf("https://%s/realms/%s/.well-known/openid-configuration", AUTH_SERVER, REALM)
+	case "okta":
+		metadataURL = fmt.Sprintf("https://%s/.well-known/openid-configuration", AUTH_SERVER)
+	case "github":
+		metadata.authorization_endpoint = "https://github.com/login/oauth/authorize"
+		metadata.token_endpoint = "https://github.com/login/oauth/access_token"
+		metadata.userinfo_endpoint = "https://api.github.com/user"
+	case "spotify":
+		metadata.authorization_endpoint = "https://accounts.spotify.com/authorize"
+		metadata.token_endpoint = "https://accounts.spotify.com/api/token"
+		// https://developer.spotify.com/documentation/web-api/reference/#/operations/get-current-users-profile
+		metadata.userinfo_endpoint = "https://api.spotify.com/v1/me"
+	}
 
-        if metadataURL == "" {
-          fmt.Println("No metadata for this Auth Server, so .well-known/openid-configuration not being pulled")
-        }else {
-  
-  	req, reqerr := http.NewRequest("GET", metadataURL, nil)
-  	if reqerr != nil {
-  		log.Panic("Request creation failed", reqerr)
-  	}
-  	req.Header.Set("Accept", "application/json")
-  	req.Header.Set("Content-Type", "application/x-www-form-urlencoded") // required to post correctly
-  	resp, resperr := http.DefaultClient.Do(req)
-  	if resperr != nil {
-  		log.Panic("Request failed", resperr)
-  	}
-  	respbody, _ := ioutil.ReadAll(resp.Body)
-  	//fmt.Println("=======", fmt.Sprintf("%s", respbody), "========")
-  	json.Unmarshal([]byte(respbody), &metadata)
-  
-          // bring in JSON in uknown format
-  	var unknown map[string]interface{}
-  	err := json.Unmarshal([]byte(respbody), &unknown)
-  	if err != nil {
-  		log.Panic("unknown marshall failed", err)
-  	}
-  
-          // manually stuff into structure
-          metadata.issuer = unknown["issuer"].(string)
-          metadata.authorization_endpoint = unknown["authorization_endpoint"].(string)
-          metadata.token_endpoint = unknown["token_endpoint"].(string)
-          metadata.userinfo_endpoint = unknown["userinfo_endpoint"].(string)
-          metadata.end_session_endpoint = unknown["end_session_endpoint"].(string)
-        }
+	if metadataURL == "" {
+		fmt.Println("No metadata for this Auth Server, so .well-known/openid-configuration not being pulled")
+	} else {
 
-        // show struture values of Auth Server metadata
-        fmt.Println("==== AUTH SERVER METADATA ====")
-        fmt.Println("issuer: " + metadata.issuer)
-        fmt.Println("authorization_endpoint: " + metadata.authorization_endpoint)
-        fmt.Println("token_endpoint: " +metadata.token_endpoint)
-        fmt.Println("userinfo_endpoint: " + metadata.userinfo_endpoint)
-        fmt.Println("end_session_endpoint: " + metadata.end_session_endpoint)
+		req, reqerr := http.NewRequest("GET", metadataURL, nil)
+		if reqerr != nil {
+			log.Panic("Request creation failed", reqerr)
+		}
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded") // required to post correctly
+		resp, resperr := http.DefaultClient.Do(req)
+		if resperr != nil {
+			log.Panic("Request failed", resperr)
+		}
+		respbody, _ := ioutil.ReadAll(resp.Body)
+		//fmt.Println("=======", fmt.Sprintf("%s", respbody), "========")
+		json.Unmarshal([]byte(respbody), &metadata)
+
+		// bring in JSON in uknown format
+		var unknown map[string]interface{}
+		err := json.Unmarshal([]byte(respbody), &unknown)
+		if err != nil {
+			log.Panic("unknown marshall failed", err)
+		}
+
+		// manually stuff into structure
+		metadata.issuer = unknown["issuer"].(string)
+		metadata.authorization_endpoint = unknown["authorization_endpoint"].(string)
+		metadata.token_endpoint = unknown["token_endpoint"].(string)
+		metadata.userinfo_endpoint = unknown["userinfo_endpoint"].(string)
+		metadata.end_session_endpoint = unknown["end_session_endpoint"].(string)
+	}
+
+	// show struture values of Auth Server metadata
+	fmt.Println("==== AUTH SERVER METADATA ====")
+	fmt.Println("issuer: " + metadata.issuer)
+	fmt.Println("authorization_endpoint: " + metadata.authorization_endpoint)
+	fmt.Println("token_endpoint: " + metadata.token_endpoint)
+	fmt.Println("userinfo_endpoint: " + metadata.userinfo_endpoint)
+	fmt.Println("end_session_endpoint: " + metadata.end_session_endpoint)
 }
 
 func main() {
-
 
 	// Returns links to the login route
 	http.HandleFunc("/", rootHandler)
 
 	// builds redirection URL+params to Authorization server
-/*
-	http.HandleFunc("/login/github/", githubLoginHandler)
-	http.HandleFunc("/login/ADFS/", adfsLoginHandler)
-	http.HandleFunc("/login/keycloak/", keycloakLoginHandler)
-	http.HandleFunc("/login/okta/", oktaLoginHandler)
-*/
+	/*
+		http.HandleFunc("/login/github/", githubLoginHandler)
+		http.HandleFunc("/login/ADFS/", adfsLoginHandler)
+		http.HandleFunc("/login/keycloak/", keycloakLoginHandler)
+		http.HandleFunc("/login/okta/", oktaLoginHandler)
+	*/
 	http.HandleFunc("/login/", loginHandler)
 
 	// callback from Auth Server that provides code, that can then be exchanged for Access Token
-/*
-	http.HandleFunc("/login/github/callback", githubCallbackHandler)
-	http.HandleFunc("/login/oauth2/code/adfs", adfsCallbackHandler)
-	http.HandleFunc("/oidc_callback", keycloakCallbackHandler)
-	http.HandleFunc("/authorization-code/callback", oktaCallbackHandler)
-*/
+	/*
+		http.HandleFunc("/login/github/callback", githubCallbackHandler)
+		http.HandleFunc("/login/oauth2/code/adfs", adfsCallbackHandler)
+		http.HandleFunc("/oidc_callback", keycloakCallbackHandler)
+		http.HandleFunc("/authorization-code/callback", oktaCallbackHandler)
+	*/
 	http.HandleFunc(CALLBACK_URI, callbackHandler)
 
 	// where authenticated user is redirected to shows basic user info
@@ -253,26 +252,26 @@ func main() {
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 
-        if IS_OIDC {
-	  fmt.Fprintf(w, "<a href=\"/login/\">LOGIN to OIDC %s </a><br/>", AUTH_PROVIDER)
-        } else {
-	  fmt.Fprintf(w, "<a href=\"/login/\">LOGIN to OAUTH2 %s </a><br/>", AUTH_PROVIDER)
-        }
-
-/*
-	// show links where provider is configured in .env
-	if "github" == AUTH_PROVIDER {
-		fmt.Fprintf(w, `<a href="/login/github/">LOGIN to Github</a><br/>`)
-	} else if "adfs" == AUTH_PROVIDER {
-		fmt.Fprintf(w, `<a href="/login/ADFS/">LOGIN to ADFS</a><br/>`)
-	} else if "keycloak" == AUTH_PROVIDER {
-		fmt.Fprintf(w, `<a href="/login/keycloak/">LOGIN to Keycloak</a><br/>`)
-	} else if "okta" == AUTH_PROVIDER {
-		fmt.Fprintf(w, `<a href="/login/okta/">LOGIN to okta</a><br/>`)
+	if IS_OIDC {
+		fmt.Fprintf(w, "<a href=\"/login/\">LOGIN to OIDC %s </a><br/>", AUTH_PROVIDER)
 	} else {
-		fmt.Fprintf(w, `Did not find AUTH_PROVIDER `, AUTH_PROVIDER)
+		fmt.Fprintf(w, "<a href=\"/login/\">LOGIN to OAUTH2 %s </a><br/>", AUTH_PROVIDER)
 	}
-*/
+
+	/*
+		// show links where provider is configured in .env
+		if "github" == AUTH_PROVIDER {
+			fmt.Fprintf(w, `<a href="/login/github/">LOGIN to Github</a><br/>`)
+		} else if "adfs" == AUTH_PROVIDER {
+			fmt.Fprintf(w, `<a href="/login/ADFS/">LOGIN to ADFS</a><br/>`)
+		} else if "keycloak" == AUTH_PROVIDER {
+			fmt.Fprintf(w, `<a href="/login/keycloak/">LOGIN to Keycloak</a><br/>`)
+		} else if "okta" == AUTH_PROVIDER {
+			fmt.Fprintf(w, `<a href="/login/okta/">LOGIN to okta</a><br/>`)
+		} else {
+			fmt.Fprintf(w, `Did not find AUTH_PROVIDER `, AUTH_PROVIDER)
+		}
+	*/
 
 }
 
@@ -299,34 +298,33 @@ func loggedinHandler(w http.ResponseWriter, r *http.Request, userData string) {
 	fmt.Fprintf(w, string(prettyJSON.Bytes()))
 }
 
-
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
 
 	redirect_uri := fmt.Sprintf("%s%s", CLIENT_BASE_APP_URL, CALLBACK_URI)
-        fmt.Println("Will be redirecting code back to " + redirect_uri)
+	fmt.Println("Will be redirecting code back to " + redirect_uri)
 
 	// unique value, coutermeasure for known attacks
 	stateStr := makeNonce()
 
-        // minimal redirect
-        redirectURL := fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&scope=%s&response_type=code&state=%s", metadata.authorization_endpoint, CLIENT_ID, redirect_uri, SCOPE, stateStr)
+	// minimal redirect
+	redirectURL := fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&scope=%s&response_type=code&state=%s", metadata.authorization_endpoint, CLIENT_ID, redirect_uri, SCOPE, stateStr)
 
-        switch AUTH_PROVIDER {
-        case "adfs":
-	  nonceStr := makeNonce()
-	  redirectURL = fmt.Sprintf("%s&resource=%s&nonce=%s", redirectURL, CLIENT_ID, nonceStr)
-        case "keycloak":
-	  redirectURL = fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&scope=%s&access_type=offline&response_type=code&state=%s&openid.realm=%s", metadata.authorization_endpoint, CLIENT_ID, redirect_uri, SCOPE, stateStr, REALM)
-        case "okta":
-	  redirectURL = fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&scope=%s&response_type=code&state=%s", metadata.authorization_endpoint, CLIENT_ID, redirect_uri, SCOPE, stateStr)
-        case "github":
-	  redirectURL = fmt.Sprintf("%s?client_id=%s&redirect_uri=%s", metadata.authorization_endpoint, CLIENT_ID, redirect_uri)
-        case "spotify":
-	  redirectURL = fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&response_type=code&state=%s&scope=%s", metadata.authorization_endpoint, CLIENT_ID, redirect_uri, stateStr, SCOPE)
-        default:
-	  redirectURL = fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&scope=%s&response_type=code&state=%s", metadata.authorization_endpoint, CLIENT_ID, redirect_uri, SCOPE, stateStr)
-        }
+	switch AUTH_PROVIDER {
+	case "adfs":
+		nonceStr := makeNonce()
+		redirectURL = fmt.Sprintf("%s&resource=%s&nonce=%s", redirectURL, CLIENT_ID, nonceStr)
+	case "keycloak":
+		redirectURL = fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&scope=%s&access_type=offline&response_type=code&state=%s&openid.realm=%s", metadata.authorization_endpoint, CLIENT_ID, redirect_uri, SCOPE, stateStr, REALM)
+	case "okta":
+		redirectURL = fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&scope=%s&response_type=code&state=%s", metadata.authorization_endpoint, CLIENT_ID, redirect_uri, SCOPE, stateStr)
+	case "github":
+		redirectURL = fmt.Sprintf("%s?client_id=%s&redirect_uri=%s", metadata.authorization_endpoint, CLIENT_ID, redirect_uri)
+	case "spotify":
+		redirectURL = fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&response_type=code&state=%s&scope=%s", metadata.authorization_endpoint, CLIENT_ID, redirect_uri, stateStr, SCOPE)
+	default:
+		redirectURL = fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&scope=%s&response_type=code&state=%s", metadata.authorization_endpoint, CLIENT_ID, redirect_uri, SCOPE, stateStr)
+	}
 	fmt.Println(redirectURL)
 
 	http.Redirect(w, r, redirectURL, 301)
@@ -334,19 +332,19 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
-	fmt.Println("code returned from " + AUTH_PROVIDER + ":", code)
+	fmt.Println("code returned from "+AUTH_PROVIDER+":", code)
 
-       if IS_OIDC {
-	  _, oidcAccessJSON := getOIDCAccessTokenAndJSON(code)
-	  loggedinHandler(w, r, oidcAccessJSON)
-       } else {
-	  accessToken := getOAuth2OnlyAccessToken(code)
-	  userinfoJSON := getOAuth2UserInfo(accessToken)
-	  loggedinHandler(w, r, userinfoJSON)
-       }
+	if IS_OIDC {
+		_, oidcAccessJSON := getOIDCAccessTokenAndJSON(code)
+		loggedinHandler(w, r, oidcAccessJSON)
+	} else {
+		accessToken := getOAuth2OnlyAccessToken(code)
+		userinfoJSON := getOAuth2UserInfo(accessToken)
+		loggedinHandler(w, r, userinfoJSON)
+	}
 }
 
-func getOIDCAccessTokenAndJSON(code string) (string,string) {
+func getOIDCAccessTokenAndJSON(code string) (string, string) {
 
 	callbackURL := fmt.Sprintf("%s%s", CLIENT_BASE_APP_URL, CALLBACK_URI)
 
@@ -428,7 +426,7 @@ func getOIDCAccessTokenAndJSON(code string) (string,string) {
 	return ghresp.AccessToken, string(accessTokenJSON)
 }
 
-func getOAuth2OnlyAccessToken(code string) (string) {
+func getOAuth2OnlyAccessToken(code string) string {
 
 	callbackURL := fmt.Sprintf("%s%s", CLIENT_BASE_APP_URL, CALLBACK_URI)
 
@@ -458,13 +456,12 @@ func getOAuth2OnlyAccessToken(code string) (string) {
 	//fmt.Println("=======", fmt.Sprintf("%s", respbody), "========")
 	// Represents the response received
 	type AccessTokenResponse struct {
-		AccessToken  string `json:"access_token"`
-		TokenType    string `json:"token_type"`
-		Scope        string `json:"scope"`
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+		Scope       string `json:"scope"`
 	}
 	var ghresp AccessTokenResponse
 	json.Unmarshal(respbody, &ghresp)
-
 
 	// FIRST decode the entire response, one of the fields is AccessToken
 	// use unknown map interface to show all json fields for debugging
@@ -479,14 +476,12 @@ func getOAuth2OnlyAccessToken(code string) (string) {
 	}
 	fmt.Println("==END ALL DECODED FIELDS============")
 
-
 	return ghresp.AccessToken
 }
 
-
 func getOAuth2UserInfo(accessToken string) string {
 	req, reqerr := http.NewRequest("GET", metadata.userinfo_endpoint, nil)
-        fmt.Println("Pulling user info from: ",metadata.userinfo_endpoint)
+	fmt.Println("Pulling user info from: ", metadata.userinfo_endpoint)
 	if reqerr != nil {
 		log.Panic("User Info URL creation failed")
 	}
@@ -503,16 +498,6 @@ func getOAuth2UserInfo(accessToken string) string {
 	return string(respbody)
 }
 
-
-
-
-
-
-
-
-
-
-
 // ****************************************************************************
 // OKTA BEGIN
 // ****************************************************************************
@@ -526,7 +511,6 @@ func oktaLoginHandler(w http.ResponseWriter, r *http.Request) {
 	stateStr := makeNonce()
 
 	redirectURL := fmt.Sprintf("https://%s/oauth2/v1/authorize?client_id=%s&redirect_uri=%s&scope=%s&response_type=code&state=%s", AUTH_SERVER, CLIENT_ID, redirect_uri, SCOPE, stateStr)
-
 
 	fmt.Println(redirectURL)
 
@@ -543,7 +527,7 @@ func oktaCallbackHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // https://developer.okta.com/docs/reference/api/oidc/#token
-func getOktaAccessTokenAndJSON(code string) (string,string) {
+func getOktaAccessTokenAndJSON(code string) (string, string) {
 
 	redirectURL := fmt.Sprintf("%s/authorization-code/callback", CLIENT_BASE_APP_URL)
 	tokenURL := fmt.Sprintf("https://%s/oauth2/v1/token", AUTH_SERVER)
@@ -554,7 +538,7 @@ func getOktaAccessTokenAndJSON(code string) (string,string) {
 	data.Set("client_secret", CLIENT_SECRET)
 	data.Set("code", code)
 	data.Set("redirect_uri", redirectURL)
-        // https://developer.okta.com/docs/reference/api/apps/#add-oauth-2-0-client-application
+	// https://developer.okta.com/docs/reference/api/apps/#add-oauth-2-0-client-application
 	//data.Set("token_endpoint_auth_method", "client_secret_post")
 
 	fmt.Println("Exchanging code for token at", tokenURL)
@@ -631,10 +615,6 @@ func getOktaAccessTokenAndJSON(code string) (string,string) {
 // ****************************************************************************
 // OKTA END
 // ****************************************************************************
-
-
-
-
 
 // ****************************************************************************
 // KEYCLOAK BEGIN
