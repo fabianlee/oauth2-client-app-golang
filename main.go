@@ -35,22 +35,25 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
+// web listening port
 const (
 	PORT = "8080"
 )
 
-var AUTH_PROVIDER = "" // github|adfs|keycloak|okta|spotify
-var AUTH_SERVER = ""   // FQDN of Auth Server
-var CLIENT_ID = ""
-var CLIENT_SECRET = ""
-var SCOPE = ""
-var REALM = ""               // keycloak specific
+// environment variables used to
+var AUTH_PROVIDER = ""       // github|adfs|keycloak|okta|spotify
+var AUTH_SERVER = ""         // FQDN of Auth Server
+var CLIENT_ID = ""           // OAUTH2 client id
+var CLIENT_SECRET = ""       // OAUTH2 client secret
+var SCOPE = ""               // OAUTH2 scope
+var REALM = ""               // Keycloak specific
 var CLIENT_BASE_APP_URL = "" // Client App URL, defaults to http://localhost:8080
 var REDIRECT_URI = ""        // location on Client App where Auth server is allowed to redirect back
 var CALLBACK_URI = ""        // location on Client App where Auth server will send code
 var IS_OIDC = true           // will be set to false if only OAuth2 (and not OIDC)
 
-// metadata on Auth Server
+// metadata about Auth Server endpoints
+// typically pulled from well-known remote location
 type MetadataResponse struct {
 	issuer                 string
 	authorization_endpoint string
@@ -59,8 +62,10 @@ type MetadataResponse struct {
 	userinfo_endpoint      string
 	end_session_endpoint   string
 }
-
+// stores Auth Server endpoints
 var metadata MetadataResponse
+
+
 
 // init() executes before the main program
 // using this to pull values from environment variables, setup defaults,
@@ -170,6 +175,7 @@ func loadAuthServerMetadata() {
 	case "github":
 		metadata.authorization_endpoint = "https://github.com/login/oauth/authorize"
 		metadata.token_endpoint = "https://github.com/login/oauth/access_token"
+                // https://docs.github.com/en/developers/apps/building-oauth-apps/authorizing-oauth-apps#3-use-the-access-token-to-access-the-api
 		metadata.userinfo_endpoint = "https://api.github.com/user"
 	case "spotify":
 		metadata.authorization_endpoint = "https://accounts.spotify.com/authorize"
@@ -187,7 +193,7 @@ func loadAuthServerMetadata() {
 			log.Panic("Request creation failed", reqerr)
 		}
 		req.Header.Set("Accept", "application/json")
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded") // required to post correctly
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		resp, resperr := http.DefaultClient.Do(req)
 		if resperr != nil {
 			log.Panic("Request failed", resperr)
@@ -232,19 +238,14 @@ func main() {
 	// then opaquely exchanged for Access Token (end user cannot see this interaction)
 	http.HandleFunc(CALLBACK_URI, callbackHandler)
 
-	// where authenticated user is redirected to shows basic user info
-	//http.HandleFunc("/loggedin", func(w http.ResponseWriter, r *http.Request) {
-	//	loggedinHandler(w, r, "")
-	//})
-
 	// start HTTP listener
-	fmt.Println("[ UP ON PORT", PORT, "]")
+	fmt.Println("[ LISTENING ON PORT", PORT, "]")
 	log.Panic(
 		http.ListenAndServe(":"+PORT, nil),
 	)
 }
 
-// gives user login link
+// gives end user a login link
 // and hint as to whether the provider is OIDC or just OAUTH2
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 
@@ -256,7 +257,8 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-// shows info about authenticated user
+// shows info about logged in user
+// logout link if Auth Server is OIDC provider
 func loggedinHandler(w http.ResponseWriter, r *http.Request, userData string) {
 	w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
 	if userData == "" {
@@ -274,7 +276,7 @@ func loggedinHandler(w http.ResponseWriter, r *http.Request, userData string) {
 	}
 
 	if IS_OIDC {
-		logoutURL := generateLogoutURL()
+	        logoutURL := fmt.Sprintf("%s?post_logout_redirect_uri=%s/&client_id=%s", metadata.end_session_endpoint, CLIENT_BASE_APP_URL, CLIENT_ID)
 		fmt.Println("logoutURL: ", logoutURL)
 
 		w.Header().Set("Content-type", "text/html")
@@ -290,24 +292,6 @@ func loggedinHandler(w http.ResponseWriter, r *http.Request, userData string) {
 	}
 }
 
-// create a logout URL for OIDC compliant provider
-func generateLogoutURL() string {
-
-	// minimal authentication params
-	logoutURL := fmt.Sprintf("%s?post_logout_redirect_uri=%s/&client_id=%s", metadata.end_session_endpoint, CLIENT_BASE_APP_URL, CLIENT_ID)
-
-	// certain providers might need appending of fields
-	switch AUTH_PROVIDER {
-	case "adfs":
-		// intentionally no changes
-	case "keycloak":
-		// intentionally no changes
-	case "okta":
-		// intentionally no changes
-	}
-
-	return logoutURL
-}
 
 // constructs URL and redirects to Auth Server authorization endpoint
 // sends: client_id, redirect_uri, scope
