@@ -12,13 +12,16 @@ A GoLang implementation of an OAuth2/OIDC Client Application in a Authorization 
 
 ### Tested OAuth2 (non-OIDC) Authentiation Servers
 
-* Github
-* Spotify
+* [Github](https://docs.github.com/en/developers/apps/building-oauth-apps/authorizing-oauth-apps)
+* [Spotify](https://developer.spotify.com/documentation/general/guides/authorization/code-flow/)
 
 ### Detailed walk-throughs
 
 * [Microsoft: configuring an Application Group for OAuth2/OIDC on ADFS 2019](https://fabianlee.org/2022/08/22/microsoft-configuring-an-application-group-for-oauth2-oidc-on-adfs-2019/)
 * [Kubernetes: Keycloak IAM deployed into Kubernetes cluster for OAuth2/OIDC ](https://fabianlee.org/2022/09/10/kubernetes-keycloak-iam-deployed-into-kubernetes-cluster-for-oauth2-oidc/)
+* [OAuth2: Configuring okta for OAuth2/OIDC](https://fabianlee.org/2022/09/12/oauth2-configuring-okta-for-oauth2-oidc/)
+* [OAuth2: Configuring Spotify for OAuth2](https://fabianlee.org/2022/09/12/oauth2-configuring-spotify-for-oauth2/)
+
 
 ### Environment variables for ADFS
 
@@ -79,7 +82,7 @@ export CLIENT_ID=<the oauth2 client id>
 export CLIENT_SECRET=<the oauth2 client secret>
 export SCOPE="streaming"
 
-# default callback at /login/oauth2/code/spotify
+# default callback at /callback
 ```
 
 ### Running as Docker container

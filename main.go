@@ -143,7 +143,7 @@ func init() {
 		DEFAULT_CALLBACK_URI = "/login/github/callback"
 		IS_OIDC = false
 	case "spotify":
-		DEFAULT_CALLBACK_URI = "/login/oauth2/code/spotify"
+		DEFAULT_CALLBACK_URI = "/callback"
 		IS_OIDC = false
 	default:
 		DEFAULT_CALLBACK_URI = "/callback"
