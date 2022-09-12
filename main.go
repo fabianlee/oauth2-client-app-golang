@@ -123,7 +123,13 @@ func init() {
 		REDIRECT_URI = "*"
 	}
 
-	// resource on Client App where code is traded for ID and Access Token
+	// URI on Client App where code is traded for ID and Access Token
+        //
+        // these values all depend on how you configure your Auth Server Client app
+        // I have picked some of these depending on Auth Server defaults, 
+        // and others based on defaults coming from Java Spring Security and Python Flask-OIDC client libraries
+        //
+        // override by setting environment variable 'CALLBACK_URI'
 	DEFAULT_CALLBACK_URI := ""
 	switch AUTH_PROVIDER {
 	case "adfs":
