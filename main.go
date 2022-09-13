@@ -87,12 +87,22 @@ func init() {
 	if !exists {
 		log.Panic("ERROR need to define AUTH_PROVIDER")
 	}
+
 	AUTH_SERVER, exists = osLookupEnv("AUTH_SERVER", "")
-	if "github" == AUTH_SERVER { // no need to specify since it is a static location
-		AUTH_SERVER = "github.com"
-	} else if !exists {
-		log.Panic("ERROR need to define AUTH_SERVER")
+	if !exists {
+		switch AUTH_SERVER {
+		case "github":
+			AUTH_SERVER = "github.com"
+		case "google":
+			AUTH_SERVER = "accounts.google.com"
+		case "spotify":
+			AUTH_SERVER = "accounts.spotify.com"
+		}
 	}
+	if "" == AUTH_SERVER {
+		log.Panic("ERROR need to define AUTH_SERVER for provider", AUTH_PROVIDER)
+	}
+
 	CLIENT_ID, exists = osLookupEnv("CLIENT_ID", "")
 	if !exists {
 		log.Panic("ERROR need to define CLIENT_ID")

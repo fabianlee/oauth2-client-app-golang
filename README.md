@@ -1,6 +1,6 @@
 ##  oauth2-client-app-golang ##
 
-A GoLang implementation of an OAuth2/OIDC Client Application in a Authorization Code flow.
+GoLang implementation of an OAuth2/OIDC Client Application in a Authorization Code flow.
 
 ![OAuth2/OIDC Entities](https://github.com/fabianlee/oauth2-client-app-golang/raw/main/diagrams/oauth2-oidc-entities.drawio.png)
 
