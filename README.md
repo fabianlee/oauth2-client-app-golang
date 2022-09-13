@@ -59,6 +59,7 @@ export REALM=myrealm
 export AUTH_SERVER=accounts.google.com
 export AUTH_PROVIDER=google
 export CLIENT_ID=<the oauth2 client id>
+# will end with 'apps.googleusercontent.com'
 export CLIENT_SECRET=<the oauth2 client secret>
 export SCOPE="openid profile email"
 
