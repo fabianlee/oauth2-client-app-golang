@@ -9,19 +9,21 @@ A GoLang implementation of an OAuth2/OIDC Client Application in a Authorization 
 * [Windows 2019 ADFS](https://fabianlee.org/2022/08/22/microsoft-configuring-an-application-group-for-oauth2-oidc-on-adfs-2019/)
 * [Keycloak 19](https://fabianlee.org/2022/09/10/kubernetes-keycloak-iam-deployed-into-kubernetes-cluster-for-oauth2-oidc/)
 * [Okta](https://developer.okta.com)
+* [Google](https://developers.google.com/identity/protocols/oauth2/openid-connect)
 
 ### Tested OAuth2 (non-OIDC) Authentiation Servers
 
 * [Github](https://docs.github.com/en/developers/apps/building-oauth-apps/authorizing-oauth-apps)
 * [Spotify](https://developer.spotify.com/documentation/general/guides/authorization/code-flow/)
 
-### Detailed walk-throughs
+### Detailed walk-throughs for each Auth Server
 
 * [Microsoft: configuring an Application Group for OAuth2/OIDC on ADFS 2019](https://fabianlee.org/2022/08/22/microsoft-configuring-an-application-group-for-oauth2-oidc-on-adfs-2019/)
 * [Kubernetes: Keycloak IAM deployed into Kubernetes cluster for OAuth2/OIDC ](https://fabianlee.org/2022/09/10/kubernetes-keycloak-iam-deployed-into-kubernetes-cluster-for-oauth2-oidc/)
 * [OAuth2: Configuring okta for OAuth2/OIDC](https://fabianlee.org/2022/09/12/oauth2-configuring-okta-for-oauth2-oidc/)
 * [OAuth2: Configuring Spotify for OAuth2](https://fabianlee.org/2022/09/12/oauth2-configuring-spotify-for-oauth2/)
 * [OAuth2: Configuring Github for OAuth2](https://fabianlee.org/2022/09/12/oauth2-configuring-github-for-oauth2/)
+* [OAuth2: Configuring Google for OAuth2/OIDC](https://fabianlee.org/2022/09/13/oauth2-configuring-google-for-oauth2-oidc/)
 
 
 ### Environment variables for ADFS
