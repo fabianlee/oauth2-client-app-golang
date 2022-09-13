@@ -272,11 +272,11 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-// If OIDC: shows ID token JSON and Access Token; logout link if provider supports
-// If OAuth2 (non OIDC):  shows retrieved user info
-func loggedinHandler(w http.ResponseWriter, r *http.Request, idTokenJSON string, accessToken string) {
+// If OIDC: shows ID token decoded and raw Access Token; logout link if provider supports
+// If OAuth2 (non OIDC):  shows user info and raw Access Token
+func loggedinHandler(w http.ResponseWriter, r *http.Request, jsonData string, accessToken string) {
 	w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
-	if idTokenJSON == "" {
+	if jsonData == "" {
 		// Unauthorized users
 		fmt.Fprintf(w, "UNAUTHORIZED!")
 		return
@@ -285,13 +285,15 @@ func loggedinHandler(w http.ResponseWriter, r *http.Request, idTokenJSON string,
 	// Prettifying the json
 	var prettyJSON bytes.Buffer
 	// json.indent is a library utility function to prettify JSON indentation
-	parserr := json.Indent(&prettyJSON, []byte(idTokenJSON), "", "\t")
+	parserr := json.Indent(&prettyJSON, []byte(jsonData), "", "\t")
 	if parserr != nil {
 		log.Panic("JSON parse error")
 	}
 
+	w.Header().Set("Content-type", "text/html")
 	if IS_OIDC {
-		w.Header().Set("Content-type", "text/html")
+
+		fmt.Fprintf(w, `<h3>OAuth2 + OIDC</h3>`)
 
 		// not all OIDC providers will have logout endpoint
 		if len(metadata.end_session_endpoint) > 0 {
@@ -302,19 +304,29 @@ func loggedinHandler(w http.ResponseWriter, r *http.Request, idTokenJSON string,
 		} else {
 			fmt.Fprintf(w, "OIDC LOGOUT not available for %s<br/>", AUTH_PROVIDER)
 		}
+
 		fmt.Fprintf(w, `<br/>`)
-		fmt.Fprintf(w, `ID Token Decoded JWT<br/><textarea cols="140" rows="18" style=\"font-size: x-small;\">`)
+		fmt.Fprintf(w, `ID Token Decoded JWT<br/><textarea cols="120" rows="15" style="font-size: x-small;">`)
 		fmt.Fprintf(w, string(prettyJSON.Bytes()))
 		fmt.Fprintf(w, `</textarea>`)
 		fmt.Fprintf(w, `<br/>`)
-		fmt.Fprintf(w, `Access Token Raw<br/><textarea cols="140" rows="5" style=\"font-size: x-small;\">`)
+		fmt.Fprintf(w, `Access Token Raw<br/><textarea cols="120" rows="5" style="font-size: x-small;">`)
 		fmt.Fprintf(w, string(accessToken))
 		fmt.Fprintf(w, `</textarea>`)
 
 	} else {
-		// non-OIDC does not have logout, so just show user info data
-		w.Header().Set("Content-type", "application/json")
+		fmt.Fprintf(w, `<h3>OAuth2 (non OIDC)</h3>`)
+
+		// OAuth2 non-OIDC does not have logout
+
+		fmt.Fprintf(w, "User Info call using access token (%s)<br/>", metadata.userinfo_endpoint)
+		fmt.Fprintf(w, `<textarea cols="120" rows="15" style="font-size: x-small;">`)
 		fmt.Fprintf(w, string(prettyJSON.Bytes()))
+		fmt.Fprintf(w, `</textarea>`)
+		fmt.Fprintf(w, `<br/>`)
+		fmt.Fprintf(w, `Access Token Raw<br/><textarea cols="120" rows="5" style="font-size: x-small;">`)
+		fmt.Fprintf(w, string(accessToken))
+		fmt.Fprintf(w, `</textarea>`)
 	}
 }
 
@@ -371,7 +383,8 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		accessToken := getOAuth2OnlyAccessToken(code)
 		userinfoJSON := getOAuth2UserInfo(accessToken)
-		loggedinHandler(w, r, userinfoJSON, "")
+		// user info is sent in substitute of ID token json
+		loggedinHandler(w, r, userinfoJSON, accessToken)
 	}
 }
 
@@ -419,6 +432,7 @@ func getIDTokenJSONAndAccessToken(code string) (string, string) {
 
 	// FIRST decode the entire response, one of the fields is access_token
 	// use unknown map interface to show all json fields for debugging
+	// https://stackoverflow.com/questions/45405626/how-to-decode-a-jwt-token-in-go
 	var unknown map[string]interface{}
 	err := json.Unmarshal([]byte(respbody), &unknown)
 	if err != nil {
@@ -432,24 +446,21 @@ func getIDTokenJSONAndAccessToken(code string) (string, string) {
 	//fmt.Println(ghresp.AccessToken)
 	//fmt.Println("scope:",ghresp.Scope)
 
-	// https://stackoverflow.com/questions/45405626/how-to-decode-a-jwt-token-in-go
-	// decode JWT token without verifying the signature
-	var claims map[string]interface{} // generic map to store parsed token
-
+	// show all ID Token fields
 	idToken, _ := jwt.ParseSigned(ghresp.IDToken)
-	_ = idToken.UnsafeClaimsWithoutVerification(&claims)
+	_ = idToken.UnsafeClaimsWithoutVerification(&unknown)
 	fmt.Println("==BEGIN DECODED ID TOKEN JWT============")
-	for k, v := range claims {
+	for k, v := range unknown {
 		fmt.Println(k, ":", v)
 	}
 	fmt.Println("==END DECODED ID TOKEN JWT============")
 	// turn jwt.JSONWebToke into JSON string with Marshal
-	idTokenJSON, err := json.Marshal(claims)
+	idTokenJSON, err := json.Marshal(unknown)
 	if err != nil {
 		log.Panic("JSON marshal of id token failed", err)
 	}
 
-	// show decded JWT Access Token, if possible
+	// show decded JWT Access Token
 	attemptPeekIntoJWTAccessToken(ghresp.AccessToken)
 
 	return string(idTokenJSON), ghresp.AccessToken
@@ -467,11 +478,11 @@ func attemptPeekIntoJWTAccessToken(data string) {
 	} else {
 		// https://stackoverflow.com/questions/45405626/how-to-decode-a-jwt-token-in-go
 		// decode JWT token without verifying the signature
-		var claims map[string]interface{} // generic map to store parsed token
+		var unknown map[string]interface{} // generic map to store parsed token
 
-		_ = token.UnsafeClaimsWithoutVerification(&claims)
+		_ = token.UnsafeClaimsWithoutVerification(&unknown)
 		fmt.Println("==BEGIN DECODED ACCESS TOKEN JWT============")
-		for k, v := range claims {
+		for k, v := range unknown {
 			fmt.Println(k, ":", v)
 		}
 		fmt.Println("==END DECODED ACCESS TOKEN JWT============")
