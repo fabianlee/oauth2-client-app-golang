@@ -41,7 +41,7 @@ const (
 )
 
 // environment variables used to
-var AUTH_PROVIDER = ""       // github|adfs|keycloak|okta|spotify
+var AUTH_PROVIDER = ""       // adfs|keycloak|okta|google|spotify|github
 var AUTH_SERVER = ""         // FQDN of Auth Server
 var CLIENT_ID = ""           // OAUTH2 client id
 var CLIENT_SECRET = ""       // OAUTH2 client secret
@@ -118,19 +118,19 @@ func init() {
 	// base location on Client App where Auth Server is allowed to callback
 	REDIRECT_URI, _ = osLookupEnv("REDIRECT_URI", "")
 	if len(REDIRECT_URI) < 1 && "adfs" == AUTH_PROVIDER {
-                // an "*" would not work for ADFS
+		// an "*" would not work for ADFS
 		REDIRECT_URI = fmt.Sprintf("%s/adfs/oauth2/token", CLIENT_BASE_APP_URL)
 	} else {
 		REDIRECT_URI = "*"
 	}
 
 	// URI on Client App where code is traded for ID and Access Token
-        //
-        // these values all depend on how you configure your Auth Server Client app
-        // I have picked some of these depending on Auth Server defaults, 
-        // and others based on defaults coming from Java Spring Security and Python Flask-OIDC client libraries
-        //
-        // override by setting environment variable 'CALLBACK_URI'
+	//
+	// these values all depend on how you configure your Auth Server Client app
+	// I have picked some of these depending on Auth Server defaults,
+	// and others based on defaults coming from Java Spring Security and Python Flask-OIDC client libraries
+	//
+	// override by setting environment variable 'CALLBACK_URI'
 	DEFAULT_CALLBACK_URI := ""
 	switch AUTH_PROVIDER {
 	case "adfs":
@@ -139,6 +139,8 @@ func init() {
 		DEFAULT_CALLBACK_URI = "/oidc_callback"
 	case "okta":
 		DEFAULT_CALLBACK_URI = "/authorization-code/callback"
+	case "google":
+		DEFAULT_CALLBACK_URI = "/login/google/callback"
 	case "github":
 		DEFAULT_CALLBACK_URI = "/login/github/callback"
 		IS_OIDC = false
@@ -178,6 +180,8 @@ func loadAuthServerMetadata() {
 		metadataURL = fmt.Sprintf("https://%s/realms/%s/.well-known/openid-configuration", AUTH_SERVER, REALM)
 	case "okta":
 		metadataURL = fmt.Sprintf("https://%s/.well-known/openid-configuration", AUTH_SERVER)
+	case "google":
+		metadataURL = fmt.Sprintf("https://accounts.google.com/.well-known/openid-configuration")
 	case "github":
 		metadata.authorization_endpoint = "https://github.com/login/oauth/authorize"
 		metadata.token_endpoint = "https://github.com/login/oauth/access_token"
@@ -193,6 +197,7 @@ func loadAuthServerMetadata() {
 	if metadataURL == "" {
 		fmt.Println("No metadata for this Auth Server, so .well-known/openid-configuration not being pulled")
 	} else {
+		fmt.Println("metadata:", metadataURL)
 
 		req, reqerr := http.NewRequest("GET", metadataURL, nil)
 		if reqerr != nil {
@@ -220,7 +225,11 @@ func loadAuthServerMetadata() {
 		metadata.authorization_endpoint = unknown["authorization_endpoint"].(string)
 		metadata.token_endpoint = unknown["token_endpoint"].(string)
 		metadata.userinfo_endpoint = unknown["userinfo_endpoint"].(string)
-		metadata.end_session_endpoint = unknown["end_session_endpoint"].(string)
+		if unknown["end_session_endpoint"] != nil {
+			metadata.end_session_endpoint = unknown["end_session_endpoint"].(string)
+		} else {
+			metadata.end_session_endpoint = ""
+		}
 	}
 
 	// show struture values of Auth Server metadata
@@ -263,12 +272,12 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-// shows info about logged in user
-// logout link if Auth Server is OIDC provider
-func loggedinHandler(w http.ResponseWriter, r *http.Request, userData string) {
+// If OIDC: shows ID token JSON and Access Token; logout link if provider supports
+// If OAuth2 (non OIDC):  shows retrieved user info
+func loggedinHandler(w http.ResponseWriter, r *http.Request, idTokenJSON string, accessToken string) {
 	w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
-	if userData == "" {
-		// Unauthorized users get an unauthorized message
+	if idTokenJSON == "" {
+		// Unauthorized users
 		fmt.Fprintf(w, "UNAUTHORIZED!")
 		return
 	}
@@ -276,19 +285,30 @@ func loggedinHandler(w http.ResponseWriter, r *http.Request, userData string) {
 	// Prettifying the json
 	var prettyJSON bytes.Buffer
 	// json.indent is a library utility function to prettify JSON indentation
-	parserr := json.Indent(&prettyJSON, []byte(userData), "", "\t")
+	parserr := json.Indent(&prettyJSON, []byte(idTokenJSON), "", "\t")
 	if parserr != nil {
 		log.Panic("JSON parse error")
 	}
 
 	if IS_OIDC {
-		logoutURL := fmt.Sprintf("%s?post_logout_redirect_uri=%s/&client_id=%s", metadata.end_session_endpoint, CLIENT_BASE_APP_URL, CLIENT_ID)
-		fmt.Println("logoutURL: ", logoutURL)
-
 		w.Header().Set("Content-type", "text/html")
-		fmt.Fprintf(w, "<a href=\"%s\">OIDC LOGOUT from %s </a><br/>", logoutURL, AUTH_PROVIDER)
-		fmt.Fprintf(w, `<textarea cols="140" rows="40" style=\"font-size: small;\">`)
+
+		// not all OIDC providers will have logout endpoint
+		if len(metadata.end_session_endpoint) > 0 {
+			logoutURL := fmt.Sprintf("%s?post_logout_redirect_uri=%s/&client_id=%s", metadata.end_session_endpoint, CLIENT_BASE_APP_URL, CLIENT_ID)
+			fmt.Println("logoutURL: ", logoutURL)
+
+			fmt.Fprintf(w, "<a href=\"%s\">OIDC LOGOUT from %s </a><br/>", logoutURL, AUTH_PROVIDER)
+		} else {
+			fmt.Fprintf(w, "OIDC LOGOUT not available for %s<br/>", AUTH_PROVIDER)
+		}
+		fmt.Fprintf(w, `<br/>`)
+		fmt.Fprintf(w, `ID Token Decoded JWT<br/><textarea cols="140" rows="18" style=\"font-size: x-small;\">`)
 		fmt.Fprintf(w, string(prettyJSON.Bytes()))
+		fmt.Fprintf(w, `</textarea>`)
+		fmt.Fprintf(w, `<br/>`)
+		fmt.Fprintf(w, `Access Token Raw<br/><textarea cols="140" rows="5" style=\"font-size: x-small;\">`)
+		fmt.Fprintf(w, string(accessToken))
 		fmt.Fprintf(w, `</textarea>`)
 
 	} else {
@@ -305,7 +325,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
 
 	callback_uri := fmt.Sprintf("%s%s", CLIENT_BASE_APP_URL, CALLBACK_URI)
-	fmt.Println("Auth Server be redirecting code back to " + callback_uri)
+	fmt.Println("Auth Server will be redirecting code back to " + callback_uri)
 
 	// unique value, coutermeasure for known attacks
 	stateStr := makeUniqueValue()
@@ -322,6 +342,9 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		authURL = fmt.Sprintf("%s&access_type=offline&openid.realm=%s", authURL, REALM)
 	case "okta":
 		// intentionally no changes
+	case "google":
+		nonceStr := makeUniqueValue()
+		authURL = fmt.Sprintf("%s&nonce=%s", authURL, nonceStr)
 	case "github":
 		// intentionally no changes
 		// github ignoes extra 'response_type' param being sent
@@ -343,17 +366,18 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("code returned from "+AUTH_PROVIDER+":", code)
 
 	if IS_OIDC {
-		_, oidcAccessJSON := getOIDCAccessTokenAndJSON(code)
-		loggedinHandler(w, r, oidcAccessJSON)
+		idTokenJSON, accessToken := getIDTokenJSONAndAccessToken(code)
+		loggedinHandler(w, r, idTokenJSON, accessToken)
 	} else {
 		accessToken := getOAuth2OnlyAccessToken(code)
 		userinfoJSON := getOAuth2UserInfo(accessToken)
-		loggedinHandler(w, r, userinfoJSON)
+		loggedinHandler(w, r, userinfoJSON, "")
 	}
 }
 
 // OIDC providers will return detailed ID and Access Token
-func getOIDCAccessTokenAndJSON(code string) (string, string) {
+// return ID Token as decoded JWT, and Access Token as-is string (often non-JWT, per spec)
+func getIDTokenJSONAndAccessToken(code string) (string, string) {
 
 	callbackURL := fmt.Sprintf("%s%s", CLIENT_BASE_APP_URL, CALLBACK_URI)
 
@@ -380,7 +404,7 @@ func getOIDCAccessTokenAndJSON(code string) (string, string) {
 	}
 
 	respbody, _ := ioutil.ReadAll(resp.Body)
-	fmt.Println("=======", fmt.Sprintf("%s", respbody), "========")
+	fmt.Println("=======\n", fmt.Sprintf("%s", respbody), "\n========")
 	// Represents the response received
 	type AccessTokenResponse struct {
 		IDToken      string `json:"id_token"`
@@ -393,7 +417,7 @@ func getOIDCAccessTokenAndJSON(code string) (string, string) {
 	var ghresp AccessTokenResponse
 	json.Unmarshal(respbody, &ghresp)
 
-	// FIRST decode the entire response, one of the fields is AccessToken
+	// FIRST decode the entire response, one of the fields is access_token
 	// use unknown map interface to show all json fields for debugging
 	var unknown map[string]interface{}
 	err := json.Unmarshal([]byte(respbody), &unknown)
@@ -412,27 +436,47 @@ func getOIDCAccessTokenAndJSON(code string) (string, string) {
 	// decode JWT token without verifying the signature
 	var claims map[string]interface{} // generic map to store parsed token
 
-	token, _ := jwt.ParseSigned(ghresp.IDToken)
-	_ = token.UnsafeClaimsWithoutVerification(&claims)
+	idToken, _ := jwt.ParseSigned(ghresp.IDToken)
+	_ = idToken.UnsafeClaimsWithoutVerification(&claims)
 	fmt.Println("==BEGIN DECODED ID TOKEN JWT============")
 	for k, v := range claims {
 		fmt.Println(k, ":", v)
 	}
 	fmt.Println("==END DECODED ID TOKEN JWT============")
-
-	token, _ = jwt.ParseSigned(ghresp.AccessToken)
-	_ = token.UnsafeClaimsWithoutVerification(&claims)
-	fmt.Println("==BEGIN DECODED ACCESS TOKEN JWT============")
-	for k, v := range claims {
-		fmt.Println(k, ":", v)
-	}
-	fmt.Println("==END DECODED ACCESS TOKEN JWT============")
-
-	accessTokenJSON, err := json.Marshal(claims)
+	// turn jwt.JSONWebToke into JSON string with Marshal
+	idTokenJSON, err := json.Marshal(claims)
 	if err != nil {
-		log.Panic("JSON marshal of access token failed", err)
+		log.Panic("JSON marshal of id token failed", err)
 	}
-	return ghresp.AccessToken, string(accessTokenJSON)
+
+	// show decded JWT Access Token, if possible
+	attemptPeekIntoJWTAccessToken(ghresp.AccessToken)
+
+	return string(idTokenJSON), ghresp.AccessToken
+}
+
+// attempts to decode a JWT Acccess Token
+// but there are no guarantees this will work because the Access Token does not have to be JWT (per spec)
+func attemptPeekIntoJWTAccessToken(data string) {
+
+	token, err := jwt.ParseSigned(data)
+	if err != nil {
+		fmt.Println("INFO cannot peek into Access Token, ParseSigned error of AccessToken", err)
+		fmt.Println("This parse typically fails when the Acess Token is non-JWT, which is perfectly valid given the OAuth2 specification")
+		fmt.Println("The audience for an Access Token is the Resource Server, not the Client App and can be any arbitrary value they have decided upon")
+	} else {
+		// https://stackoverflow.com/questions/45405626/how-to-decode-a-jwt-token-in-go
+		// decode JWT token without verifying the signature
+		var claims map[string]interface{} // generic map to store parsed token
+
+		_ = token.UnsafeClaimsWithoutVerification(&claims)
+		fmt.Println("==BEGIN DECODED ACCESS TOKEN JWT============")
+		for k, v := range claims {
+			fmt.Println(k, ":", v)
+		}
+		fmt.Println("==END DECODED ACCESS TOKEN JWT============")
+	}
+
 }
 
 // OAuth2-only providers (not OIDC compliant)  will return only Access Token and not ID Token
@@ -466,6 +510,7 @@ func getOAuth2OnlyAccessToken(code string) string {
 	//fmt.Println("=======", fmt.Sprintf("%s", respbody), "========")
 	// Represents the response received
 	type AccessTokenResponse struct {
+		IDToken     string `json:"id_token"` // this will always be empty string, since non-OIDC
 		AccessToken string `json:"access_token"`
 		TokenType   string `json:"token_type"`
 		Scope       string `json:"scope"`
@@ -473,7 +518,14 @@ func getOAuth2OnlyAccessToken(code string) string {
 	var ghresp AccessTokenResponse
 	json.Unmarshal(respbody, &ghresp)
 
-	// FIRST decode the entire response, one of the fields is AccessToken
+	// id token should not be present if this is OAuth2 only, and not OIDC
+	if ghresp.IDToken == "" {
+		fmt.Println("id_token is nil, which is expected with non-OIDC")
+	} else {
+		fmt.Println("WARNING id_token has value, which is not expected given this is non-OIDC")
+	}
+
+	// decode the entire response, one of the fields is access_token
 	// use unknown map interface to show all json fields for debugging
 	var unknown map[string]interface{}
 	err := json.Unmarshal([]byte(respbody), &unknown)

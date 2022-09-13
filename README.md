@@ -50,6 +50,19 @@ export REALM=myrealm
 # default callback at /oidc_callback
 ```
 
+
+### Environment variables for Google
+
+```
+export AUTH_SERVER=accounts.google.com
+export AUTH_PROVIDER=google
+export CLIENT_ID=<the oauth2 client id>
+export CLIENT_SECRET=<the oauth2 client secret>
+export SCOPE="openid profile email"
+
+# default callback at /login/google/callback
+```
+
 ### Environment variables for okta
 
 ```
